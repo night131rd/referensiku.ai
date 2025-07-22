@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Search } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SearchFormProps {
   defaultQuery?: string;
@@ -25,7 +24,7 @@ export default function SearchForm({
   const [query, setQuery] = useState(defaultQuery);
   const [startYear, setStartYear] = useState(defaultStartYear);
   const [endYear, setEndYear] = useState(defaultEndYear);
-  const [mode, setMode] = useState(defaultMode);
+  const mode = "quick"; // Fixed to quick mode
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentYear = new Date().getFullYear();
@@ -52,7 +51,7 @@ export default function SearchForm({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="query" className="text-sm font-medium">
             Research Topic
@@ -66,7 +65,6 @@ export default function SearchForm({
             required
           />
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="startYear" className="text-sm font-medium">
@@ -100,46 +98,16 @@ export default function SearchForm({
             />
           </div>
         </div>
-
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Search Mode</Label>
-          <Tabs defaultValue={mode} onValueChange={setMode} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="quick">Quick Response</TabsTrigger>
-              <TabsTrigger value="comprehensive">Comprehensive</TabsTrigger>
-            </TabsList>
-            <TabsContent value="quick" className="mt-2">
-              <p className="text-sm text-gray-500">
-                Fast results using Vertex AI and OpenAlex API. Best for quick
-                answers and key information.
-              </p>
-            </TabsContent>
-            <TabsContent value="comprehensive" className="mt-2">
-              <p className="text-sm text-gray-500">
-                In-depth analysis using Crow Futurehouse API. Best for thorough
-                literature reviews and detailed insights.
-              </p>
-            </TabsContent>
-          </Tabs>
+        <div className="mt-6">
+          <Button
+            type="submit"
+            className="w-full flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+          >
+            <Search className="h-4 w-4" />
+            {isSubmitting ? "Searching..." : "Search"}
+          </Button>
         </div>
-
-        <Button
-          type="submit"
-          className="w-full flex items-center justify-center gap-2"
-          disabled={isSubmitting || !query.trim()}
-        >
-          {isSubmitting ? (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-              Searching...
-            </>
-          ) : (
-            <>
-              <Search className="h-4 w-4" />
-              Search Academic Journals
-            </>
-          )}
-        </Button>
       </form>
     </div>
   );

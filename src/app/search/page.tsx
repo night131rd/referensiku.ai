@@ -3,6 +3,7 @@ import SearchResults from "@/components/search-results";
 import Navbar from "@/components/navbar";
 import Footer from "@/components/footer";
 import { Suspense } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function SearchPage({
   searchParams,
@@ -40,7 +41,12 @@ export default function SearchPage({
           {hasSearchParams && (
             <Suspense
               fallback={
-                <div className="mt-8 text-center">Loading results...</div>
+                <div className="mt-8 p-6 bg-white rounded-lg shadow-sm border border-gray-100 text-center">
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-4" />
+                    <p className="text-gray-600">Loading search results...</p>
+                  </div>
+                </div>
               }
             >
               <SearchResults
