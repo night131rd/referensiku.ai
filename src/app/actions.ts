@@ -222,8 +222,14 @@ export const searchJournals = async (
     
     // Start the search on the backend
     const searchResponse = await api.startSearch(query, yearString, mode);
-    const taskId = searchResponse.task_id;
     
+    // Check if we got a fallback response
+    if (searchResponse.fallback === true) {
+      console.log("Received fallback response from search API, using mock data");
+      throw new Error(searchResponse.error || "Search service unavailable");
+    }
+    
+    const taskId = searchResponse.task_id;
     console.log(`Search started with task ID: ${taskId}`);
     
     // Poll for status until completed or error
@@ -240,6 +246,12 @@ export const searchJournals = async (
       
       console.log(`Status check ${retries}: ${status.status} - ${status.message}`);
       
+      // Check if status check returned a fallback response
+      if (status.fallback === true) {
+        console.log("Received fallback response from status API, using mock data");
+        throw new Error(status.error || "Search status check failed");
+      }
+      
       // If we've been waiting too long, consider it failed
       if (retries >= maxRetries) {
         throw new Error("Search timed out after 90 seconds");
@@ -250,12 +262,18 @@ export const searchJournals = async (
     // Get the answer and references
     const answerData = await api.getAnswer(taskId);
     
+    // Check if answer retrieval returned a fallback response
+    if (answerData.fallback === true) {
+      console.log("Received fallback response from answer API, using mock data");
+      throw new Error(answerData.error || "Failed to retrieve answer");
+    }
+    
     // Convert sources to the JournalReference format
     const references: JournalReference[] = answerData.sources.map((source: any) => ({
       title: source.title || "Unknown Title",
       authors: source.author ? [source.author] : ["Unknown Author"],
       year: source.year ? parseInt(source.year) : new Date().getFullYear(),
-      journal: (source.journal || "Unknown Journal"), // Convert journal name to uppercase
+      journal: (source.journal || "Unknown Journal").toUpperCase(), // Convert journal name to uppercase
       doi: source.doi || "",
       url: source.url || "",
       pdfUrl: source.pdfUrl || "",

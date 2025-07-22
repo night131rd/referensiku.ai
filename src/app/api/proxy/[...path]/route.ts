@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Make sure API_URL is properly formatted with https:// if not present
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+console.log('Proxy route using API_URL:', API_URL);
 
 // Replace deprecated config with the new runtime directive
 export const runtime = "edge";
@@ -49,14 +50,24 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
     
     // Construct the backend URL, ensuring proper URL format
     let apiUrl = API_URL;
+    
+    // Check if API_URL is empty or undefined in Vercel environment
+    if (!apiUrl || apiUrl.trim() === '') {
+      // Hardcode the URL in production as a fallback
+      apiUrl = 'https://referensiku-backend-production.up.railway.app';
+      console.log('Empty API_URL, using hardcoded fallback:', apiUrl);
+    }
+    
     // Remove trailing slashes from API_URL
     apiUrl = apiUrl.replace(/\/+$/, '');
+    
     // Make sure URL has proper protocol
     if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
       apiUrl = `https://${apiUrl}`;
     }
 
     const backendUrl = `${apiUrl}${pathSegment}${searchParams}`;
+    console.log('Final backend URL:', backendUrl);
     
     console.log(`Proxying ${req.method} request to: ${backendUrl}`);
     
