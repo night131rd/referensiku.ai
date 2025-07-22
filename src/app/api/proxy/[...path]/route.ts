@@ -2,22 +2,51 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export const config = {
-  runtime: 'edge',
-};
+// Replace deprecated config with the new runtime directive
+export const runtime = "edge";
 
 /**
  * Proxy API requests to the backend to avoid CORS issues
  */
-export default async function handler(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return handleRequest(req, params);
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return handleRequest(req, params);
+}
+
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return handleRequest(req, params);
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  return handleRequest(req, params);
+}
+
+async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
   try {
-    // Extract the path from the URL (remove /api/proxy)
+    // Extract the path from the URL
     const url = new URL(req.url);
-    const path = url.pathname.replace('/api/proxy', '');
+    const pathSegment = '/' + path.join('/');
     const searchParams = url.search;
     
     // Construct the backend URL
-    const backendUrl = `${API_URL}${path}${searchParams}`;
+    const backendUrl = `${API_URL}${pathSegment}${searchParams}`;
+    
+    console.log(`Proxying ${req.method} request to: ${backendUrl}`);
     
     // Forward the request headers
     const headers = new Headers();
