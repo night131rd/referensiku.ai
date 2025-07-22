@@ -89,6 +89,42 @@ export const signInAction = async (formData: FormData) => {
   return redirect("/dashboard");
 };
 
+export const signInWithGoogleAction = async () => {
+  try {
+    const supabase = await createClient();
+    const origin = headers().get("origin") || "http://localhost:3000";
+    console.log("Starting Google sign-in flow with origin:", origin);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${origin}/auth/callback`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
+    });
+
+    if (error) {
+      console.error("Google sign in error:", error);
+      return encodedRedirect("error", "/sign-in", `Failed to sign in with Google: ${error.message}`);
+    }
+
+    if (!data?.url) {
+      console.error("No URL returned from signInWithOAuth");
+      return encodedRedirect("error", "/sign-in", "Authentication URL not returned");
+    }
+
+    console.log("Redirecting to Google sign-in page:", data.url);
+    // Redirect user to the Google sign-in page
+    return redirect(data.url);
+  } catch (e) {
+    console.error("Unexpected error during Google sign-in:", e);
+    return encodedRedirect("error", "/sign-in", `An unexpected error occurred: ${e instanceof Error ? e.message : 'Unknown error'}`);
+  }
+};
+
 export const forgotPasswordAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const supabase = await createClient();
@@ -219,7 +255,7 @@ export const searchJournals = async (
       title: source.title || "Unknown Title",
       authors: source.author ? [source.author] : ["Unknown Author"],
       year: source.year ? parseInt(source.year) : new Date().getFullYear(),
-      journal: source.journal || "Unknown Journal",
+      journal: (source.journal || "Unknown Journal"), // Convert journal name to uppercase
       doi: source.doi || "",
       url: source.url || "",
       pdfUrl: source.pdfUrl || "",
@@ -246,7 +282,7 @@ export const searchJournals = async (
         title: "The Impact of Climate Change on Global Biodiversity",
         authors: ["Smith, J.", "Johnson, A.", "Williams, R."],
         year: 2022,
-        journal: "Journal of Environmental Science",
+        journal: "JOURNAL OF ENVIRONMENTAL SCIENCE", // Uppercase journal name
         doi: "10.1234/jes.2022.1234",
         url: "https://example.com/journal/climate-change",
         pdfUrl: "https://example.com/pdf/climate-change.pdf",
@@ -257,7 +293,7 @@ export const searchJournals = async (
         title: "Machine Learning Approaches to Climate Prediction",
         authors: ["Chen, L.", "Garcia, M."],
         year: 2021,
-        journal: "Computational Environmental Science",
+        journal: "COMPUTATIONAL ENVIRONMENTAL SCIENCE", // Uppercase journal name
         doi: "10.1234/ces.2021.5678",
         url: "https://example.com/journal/ml-climate",
         abstract:
@@ -267,7 +303,7 @@ export const searchJournals = async (
         title: "Policy Frameworks for Climate Adaptation in Coastal Regions",
         authors: ["Brown, K.", "Miller, S.", "Davis, T.", "Wilson, P."],
         year: 2023,
-        journal: "Environmental Policy Review",
+        journal: "ENVIRONMENTAL POLICY REVIEW", // Uppercase journal name
         doi: "10.1234/epr.2023.9012",
         pdfUrl: "https://example.com/pdf/policy-climate.pdf",
       },
