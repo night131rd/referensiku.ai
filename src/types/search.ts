@@ -12,4 +12,5 @@ export interface JournalReference {
 export interface SearchResult {
   answer: string;
   references: JournalReference[];
+  taskId?: string; // Task ID for tracking search with backend
 }
