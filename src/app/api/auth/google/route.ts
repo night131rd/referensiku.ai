@@ -1,6 +1,9 @@
 import { createClient } from "../../../../../supabase/server";
 import { NextResponse } from "next/server";
 
+// Force dynamic rendering to fix the static generation error
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const requestUrl = new URL(request.url);

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Make sure API_URL is properly formatted with https:// if not present
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Replace deprecated config with the new runtime directive
 export const runtime = "edge";
+
+// Force dynamic rendering to fix the static generation error
+export const dynamic = 'force-dynamic';
 
 /**
  * Proxy API requests to the backend to avoid CORS issues
@@ -43,8 +47,16 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
     const pathSegment = '/' + path.join('/');
     const searchParams = url.search;
     
-    // Construct the backend URL
-    const backendUrl = `${API_URL}${pathSegment}${searchParams}`;
+    // Construct the backend URL, ensuring proper URL format
+    let apiUrl = API_URL;
+    // Remove trailing slashes from API_URL
+    apiUrl = apiUrl.replace(/\/+$/, '');
+    // Make sure URL has proper protocol
+    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+      apiUrl = `https://${apiUrl}`;
+    }
+
+    const backendUrl = `${apiUrl}${pathSegment}${searchParams}`;
     
     console.log(`Proxying ${req.method} request to: ${backendUrl}`);
     
@@ -79,8 +91,19 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
   } catch (error) {
     console.error('API proxy error:', error);
     
+    // Return detailed error information in development
+    const errorMessage = process.env.NODE_ENV === 'development'
+      ? `Failed to connect to backend API: ${error instanceof Error ? error.message : String(error)}`
+      : 'Failed to connect to backend API';
+    
+    // Include API URL in logs for debugging
+    console.error(`API URL used: ${API_URL}`);
+    
     return NextResponse.json(
-      { error: 'Failed to connect to backend API' },
+      { 
+        error: errorMessage,
+        fallback: true
+      },
       { status: 500 }
     );
   }
