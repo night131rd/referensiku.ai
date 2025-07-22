@@ -216,7 +216,7 @@ export const searchJournals = async (
   try {
     // Import API client
     const api = await import('@/lib/api');
-    
+
     // Format years as a single string
     const yearString = `${startYear}-${endYear}`;
     
