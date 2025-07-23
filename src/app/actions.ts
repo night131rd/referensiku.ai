@@ -8,6 +8,7 @@ import { SearchResult, JournalReference } from "@/types/search";
 // Note: We import the API client dynamically in the searchJournals function
 // to ensure it works with the "use server" directive
 
+
 export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();

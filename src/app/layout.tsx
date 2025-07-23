@@ -9,8 +9,8 @@ import { Analytics } from "@vercel/analytics/next";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Tempo - Modern SaaS Starter",
-  description: "A modern full-stack starter template powered by Next.js",
+  title: "ChatJurnal : AI Pencarian Jurnal Akademik",
+  description: "ChatJurnal adalah platform yang menggabungkan kecerdasan buatan dengan database jurnal akademik untuk memberikan jawaban yang akurat dan terperinci terhadap pertanyaan Anda.",
 };
 
 export default function RootLayout({
@@ -21,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>Next.js</title>
+        <title>ChatJurnal : AI Pencarian Jurnal Akademik</title>
       </head>
       <body>
         {children}
