@@ -93,7 +93,7 @@ export const signInAction = async (formData: FormData) => {
 export const signInWithGoogleAction = async () => {
   try {
     const supabase = await createClient();
-    const origin = headers().get("origin") || "http://localhost:3000";
+    const origin = headers().get("origin") || "https://chatjurnal.vercel.app/";
     console.log("Starting Google sign-in flow with origin:", origin);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -236,7 +236,7 @@ export const searchJournals = async (
     // Poll for status until completed or error
     let status;
     let retries = 0;
-    const maxRetries = 30; // Maximum number of polling attempts (30 * 3 seconds = 90 seconds)
+    const maxRetries = 60; // Maximum number of polling attempts (30 * 3 seconds = 90 seconds)
     
     do {
       // Wait a bit between status checks
