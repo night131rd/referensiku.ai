@@ -45,7 +45,7 @@ export default async function SearchPage({
 
           {hasSearchParams && (
             <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-4">Search Results</h2>
+              <h2 className="text-xl font-semibold mb-4">Hasil Pencarian</h2>
 
               <Suspense
                 fallback={

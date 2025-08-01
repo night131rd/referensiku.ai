@@ -30,16 +30,29 @@ export default async function SignInPage({ searchParams }: LoginProps) {
         <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-sm">
           <form className="flex flex-col space-y-6">
             <div className="space-y-2 text-center">
-              <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">Masuk</h1>
               <p className="text-sm text-muted-foreground">
-                Don't have an account?{" "}
+                Belum memiliki akun?{" "}
                 <Link
                   className="text-primary font-medium hover:underline transition-all"
                   href="/sign-up"
                 >
-                  Sign up
+                  Daftar
                 </Link>
               </p>
+            </div>
+
+            <GoogleSignInButton />
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  Atau masuk dengan email
+                </span>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -66,14 +79,14 @@ export default async function SignInPage({ searchParams }: LoginProps) {
                     className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-all"
                     href="/forgot-password"
                   >
-                    Forgot Password?
+                    Lupa Password?
                   </Link>
                 </div>
                 <Input
                   id="password"
                   type="password"
                   name="password"
-                  placeholder="Your password"
+                  placeholder="Password anda"
                   required
                   className="w-full"
                 />
@@ -82,24 +95,11 @@ export default async function SignInPage({ searchParams }: LoginProps) {
 
             <SubmitButton
               className="w-full"
-              pendingText="Signing in..."
+              pendingText="Sedang masuk..."
               formAction={signInAction}
             >
-              Sign in
+              Masuk
             </SubmitButton>
-
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-
-            <GoogleSignInButton />
 
             <FormMessage message={message} />
           </form>

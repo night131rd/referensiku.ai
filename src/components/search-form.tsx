@@ -54,13 +54,13 @@ export default function SearchForm({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="query" className="text-sm font-medium">
-            Research Topic
+            Topik Pencarian
           </Label>
           <Input
             id="query"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Enter a research topic or question"
+            placeholder="Masukkan topik pencarian"
             className="w-full"
             required
           />
@@ -68,7 +68,7 @@ export default function SearchForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="startYear" className="text-sm font-medium">
-              Start Year
+              Tahun Awal
             </Label>
             <Input
               id="startYear"
@@ -77,14 +77,14 @@ export default function SearchForm({
               max={currentYear}
               value={startYear}
               onChange={(e) => setStartYear(e.target.value)}
-              placeholder="From year (optional)"
+              placeholder="Dari tahun (opsional)"
               className="w-full"
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="endYear" className="text-sm font-medium">
-              End Year
+              Tahun Akhir
             </Label>
             <Input
               id="endYear"
@@ -93,7 +93,7 @@ export default function SearchForm({
               max={currentYear}
               value={endYear}
               onChange={(e) => setEndYear(e.target.value)}
-              placeholder="To year (optional)"
+              placeholder="Hingga tahun (opsional)"
               className="w-full"
             />
           </div>

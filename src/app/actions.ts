@@ -278,7 +278,7 @@ export const searchJournals = async (
       doi: source.doi || "",
       url: source.url || "",
       pdfUrl: source.pdfUrl || "",
-      abstract: source.abstract || "",
+      abstract: source.teks || "",
     }));
 
     return {

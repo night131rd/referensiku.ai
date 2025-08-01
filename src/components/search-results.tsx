@@ -86,7 +86,7 @@ export default function SearchResults({
     return (
       <div className="mt-8 p-6 bg-white rounded-lg shadow-sm border border-gray-100 text-center">
         <p className="text-gray-600">
-          No results found. Please try a different search query.
+          Tidak ada hasil ditemukan. Silakan coba kueri pencarian yang berbeda.
         </p>
       </div>
     );
@@ -98,7 +98,7 @@ export default function SearchResults({
     <div className="mt-8 space-y-6">
       {/* AI-generated answer section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-semibold mb-4">Research Answer</h2>
+        <h2 className="text-xl font-semibold mb-4">Jawaban Pencarian</h2>
         <div className="prose max-w-none">
           <div dangerouslySetInnerHTML={{ __html: answer }} />
         </div>
@@ -106,15 +106,15 @@ export default function SearchResults({
 
       {/* References section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-semibold mb-4">References</h2>
+        <h2 className="text-xl font-semibold mb-4">Referensi </h2>
         <div className="space-y-4">
           {references.map((reference, index) => (
-            <JournalCard key={index} reference={reference} index={index} />
+            <Reference key={index} reference={reference} index={index} />
           ))}
 
           {references.length === 0 && (
             <p className="text-gray-600 text-center py-4">
-              No references available for this search.
+              Tidak ada referensi ditemukan untuk pencarian ini.
             </p>
           )}
         </div>
@@ -134,142 +134,146 @@ function SearchProgress({
 }) {
   return (
     <div className="mt-8 p-6 bg-white rounded-lg shadow-sm border border-gray-100">
-      <div className="flex items-center gap-4 mb-4">
-        <div className="bg-blue-100 p-3 rounded-full">
-          <Brain className="h-6 w-6 text-blue-600" />
+      <div className="flex flex-col items-center mb-6">
+        <h2 className="text-lg font-medium text-center mb-2">Menganalisis sumber akademis...</h2>
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <span className="font-semibold text-blue-600 text-xl">{journalsFound}</span>
+          <span className="text-gray-600">jurnal ditemukan</span>
         </div>
-        <div>
-          <h2 className="text-lg font-medium">Analyzing academic sources...</h2>
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-sm text-gray-500">Found: </span>
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-blue-600">
-                {journalsFound}
-              </span>
-              <span className="text-sm text-gray-500">journals</span>
-              <span className="ml-4 text-sm font-medium text-gray-500">
-                {progress}%
-              </span>
-            </div>
-          </div>
-        </div>
+        <div className="text-sm font-medium text-gray-500 mb-2">{progress}% selesai</div>
       </div>
 
-      <div className="relative h-2 bg-blue-100 rounded-full overflow-hidden mt-2">
+      <div className="relative h-2 bg-blue-100 rounded-full overflow-hidden">
         <div
-          className="absolute top-0 left-0 h-full bg-blue-600 transition-all duration-300 ease-in-out"
+          className="absolute top-0 left-0 h-full bg-violet-600 transition-all duration-300 ease-in-out"
           style={{ width: `${progress}%` }}
         />
       </div>
 
-      <div className="flex justify-between mt-4">
-        <div className="flex items-center gap-2">
+      <div className="flex justify-between mt-6 px-2 sm:px-6">
+        <div className="flex flex-col items-center gap-1">
           <div
             className={cn(
-              "w-5 h-5 rounded-full flex items-center justify-center",
-              state === "searching" ? "bg-blue-600" : "bg-green-500",
+              "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
+              state === "searching" ? "bg-blue-600 scale-110" : state === "found" || state === "processing" || state === "complete" ? "bg-green-500" : "bg-gray-200"
             )}
           >
             {state === "searching" ? (
-              <Search className="h-3 w-3 text-white" />
+              <Search className="h-4 w-4 text-white animate-pulse" />
             ) : (
-              <CheckCircle2 className="h-3 w-3 text-white" />
+              <CheckCircle2 className="h-4 w-4 text-white" />
             )}
           </div>
           <span
             className={cn(
-              "text-sm",
+              "text-xs text-center",
               state === "searching"
                 ? "text-blue-600 font-medium"
-                : "text-green-500 font-medium",
+                : state === "found" || state === "processing" || state === "complete"
+                  ? "text-green-500 font-medium"
+                  : "text-gray-400"
             )}
           >
-            Searching
+            Pencarian
           </span>
-        </div>
+          </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-center gap-1">
           <div
             className={cn(
-              "w-5 h-5 rounded-full flex items-center justify-center",
-              state === "found"
-                ? "bg-blue-600"
-                : state === "searching"
-                  ? "bg-gray-200"
-                  : "bg-green-500",
+              "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
+              state === "found" ? "bg-blue-600 scale-110" : state === "processing" || state === "complete" ? "bg-green-500" : "bg-gray-200"
             )}
           >
             {state === "found" ? (
-              <Search className="h-3 w-3 text-white" />
-            ) : state !== "searching" ? (
-              <CheckCircle2 className="h-3 w-3 text-white" />
+              <Search className="h-4 w-4 text-white animate-pulse" />
+            ) : state === "processing" || state === "complete" ? (
+              <CheckCircle2 className="h-4 w-4 text-white" />
             ) : null}
           </div>
           <span
             className={cn(
-              "text-sm",
+              "text-xs text-center",
               state === "found"
                 ? "text-blue-600 font-medium"
-                : state === "searching"
-                  ? "text-gray-400"
-                  : "text-green-500 font-medium",
+                : state === "processing" || state === "complete"
+                  ? "text-green-500 font-medium"
+                  : "text-gray-400"
             )}
           >
-            Found Sources
+            Sumber<br/>Ditemukan
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-center gap-1">
           <div
             className={cn(
-              "w-5 h-5 rounded-full flex items-center justify-center",
-              state === "processing"
-                ? "bg-blue-600"
-                : state === "complete"
-                  ? "bg-green-500"
-                  : "bg-gray-200",
+              "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
+              state === "processing" ? "bg-blue-600 scale-110" : state === "complete" ? "bg-green-500" : "bg-gray-200"
             )}
           >
             {state === "processing" ? (
-              <Brain className="h-3 w-3 text-white" />
+              <Brain className="h-4 w-4 text-white animate-pulse" />
             ) : state === "complete" ? (
-              <CheckCircle2 className="h-3 w-3 text-white" />
+              <CheckCircle2 className="h-4 w-4 text-white" />
             ) : null}
           </div>
           <span
             className={cn(
-              "text-sm",
+              "text-xs text-center",
               state === "processing"
                 ? "text-blue-600 font-medium"
                 : state === "complete"
                   ? "text-green-500 font-medium"
-                  : "text-gray-400",
+                  : "text-gray-400"
             )}
           >
-            Processing
+            Mengolah<br/>Data
           </span>
         </div>
       </div>
 
       <div className="mt-8 flex justify-center">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mb-2">
-            <Brain className="h-6 w-6 text-blue-600 animate-bounce" />
+        {state === "searching" && (
+          <div className="animate-pulse flex flex-col items-center">
+            <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
+              <Search className="h-6 w-6 text-blue-600 animate-bounce" />
+            </div>
+            <p className="text-sm text-gray-600 font-medium">Mencari jurnal ilmiah...</p>
           </div>
-          <p className="text-sm text-gray-500">Analyzing content...</p>
-        </div>
+        )}
+        
+        {state === "found" && (
+          <div className="animate-pulse flex flex-col items-center">
+            <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
+              <Search className="h-6 w-6 text-blue-600 animate-bounce" />
+            </div>
+            <p className="text-sm text-gray-600 font-medium">Mengumpulkan sumber akademis...</p>
+          </div>
+        )}
+        
+        {state === "processing" && (
+          <div className="animate-pulse flex flex-col items-center">
+            <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
+              <Brain className="h-6 w-6 text-blue-600 animate-bounce" />
+            </div>
+            <p className="text-sm text-gray-600 font-medium">Menganalisis konten...</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function JournalCard({
+function Reference({
   reference,
   index,
 }: {
   reference: JournalReference;
   index: number;
 }) {
+  const [showFullAbstract, setShowFullAbstract] = useState(false);
+
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start">
@@ -278,59 +282,120 @@ function JournalCard({
           <p className="text-gray-600 mt-1">
             {reference.authors.join(", ")} ({reference.year})
           </p>
-          <p className="text-gray-500 text-sm mt-2">{reference.journal}</p>
-          {reference.abstract && (
-            <p className="text-gray-700 mt-3 text-sm line-clamp-3">
-              {reference.abstract}
-            </p>
+          
+          {/* External links - PDF and URL */}
+          {(reference.pdfUrl || reference.url) && (
+            <div className="flex space-x-2 mt-2">
+              {reference.pdfUrl && (
+                <a 
+                  href={reference.pdfUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-2.5 py-1 rounded-md bg-red-50 text-red-700 text-xs hover:bg-red-100 transition-colors border border-red-200"
+                >
+                  <Download size={14} className="mr-1" />
+                  PDF
+                </a>
+              )}
+              {reference.url && (
+                <a 
+                  href={reference.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs hover:bg-blue-100 transition-colors border border-blue-200"
+                >
+                  <ExternalLink size={14} className="mr-1" />
+                  Link
+                </a>
+              )}
+            </div>
           )}
+          
+          <div
+            className="mt-2 bg-gray-50 p-2.5 border-l-2 border-blue-500 italic relative group cursor-pointer hover:bg-gray-100 transition-colors"
+            onClick={() => setShowFullAbstract(true)}
+          >
+            <p className="text-gray-700 text-sm line-clamp-3">
+              {reference.abstract ? (
+                `"${reference.abstract.slice(0, 150)}${reference.abstract.length > 150 ? '...' : '"'}`
+              ) : (
+                `"${reference.journal}"`
+              )}
+            </p>
+            <p className="text-gray-500 text-xs mt-1 non-italic">
+              {reference.journal}
+            </p>
+            
+            {reference.abstract && reference.abstract.length > 150 && (
+              <div className="absolute bottom-1 right-1 text-xs text-blue-500 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="mr-1">Lihat lengkap</span>
+                <BookOpen size={14} />
+              </div>
+            )}
+          </div>
         </div>
         <div className="ml-4 flex flex-col items-center justify-center bg-gray-50 rounded-lg p-3 text-center min-w-[60px]">
           <span className="text-2xl font-bold text-blue-600">{index + 1}</span>
           <span className="text-xs text-gray-500">Ref</span>
         </div>
       </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {reference.doi && (
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={`https://doi.org/${reference.doi}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1"
-            >
-              <ExternalLink className="h-3 w-3" /> DOI
-            </a>
-          </Button>
-        )}
-
-        {reference.pdfUrl && (
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={reference.pdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1"
-            >
-              <Download className="h-3 w-3" /> PDF
-            </a>
-          </Button>
-        )}
-
-        {reference.url && (
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={reference.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1"
-            >
-              <BookOpen className="h-3 w-3" /> View
-            </a>
-          </Button>
-        )}
-      </div>
+      
+      {/* Modal for full abstract */}
+      {showFullAbstract && reference.abstract && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => {
+          if (e.target === e.currentTarget) setShowFullAbstract(false);
+        }}>
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <h3 className="text-xl font-semibold mb-2">{reference.title}</h3>
+              <p className="text-gray-600 mb-4">
+                {reference.authors.join(", ")} ({reference.year})
+              </p>
+              <div className="bg-gray-50 p-4 rounded-md border-l-4 border-blue-500 mb-4">
+                <p className="text-gray-800">{reference.abstract}</p>
+              </div>
+              <p className="text-gray-600 text-sm mb-4">
+                <span className="font-medium">Sumber:</span> {reference.journal}
+              </p>
+              
+              {/* External links in modal */}
+              <div className="flex space-x-3 mb-6">
+                {reference.pdfUrl && (
+                  <a 
+                    href={reference.pdfUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-3 py-2 rounded-md bg-red-50 text-red-700 text-sm hover:bg-red-100 transition-colors border border-red-200"
+                  >
+                    <Download size={16} className="mr-2" />
+                    Unduh PDF
+                  </a>
+                )}
+                {reference.url && (
+                  <a 
+                    href={reference.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-3 py-2 rounded-md bg-blue-50 text-blue-700 text-sm hover:bg-blue-100 transition-colors border border-blue-200"
+                  >
+                    <ExternalLink size={16} className="mr-2" />
+                    Buka Link
+                  </a>
+                )}
+              </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => setShowFullAbstract(false)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Tutup
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
