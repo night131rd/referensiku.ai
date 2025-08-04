@@ -67,3 +67,40 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom styles for search results text formatting */
+.text-justify {
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+}
+
+/* Improved bullet points and numbered lists */
+.search-results-content ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.search-results-content ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.search-results-content li {
+  margin-bottom: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+/* Paragraph spacing */
+.search-results-content p {
+  margin-bottom: 1rem;
+  text-align: justify;
+}
+
+/* Handle numbered points with asterisks format (like **1. Point**) */
+.search-results-content p strong {
+  font-weight: 600;
+  color: #1a56db; /* Slightly emphasized color for points */
+}

@@ -23,6 +23,7 @@ export interface SearchStatusResponse {
 export interface AnswerResponse {
   answer: string;
   sources: any[];
+  bibliography?: string[]; // Bibliography entries from the backend
   fallback?: boolean;
   error?: string;
 }
@@ -128,6 +129,87 @@ export async function getAnswer(taskId: string): Promise<AnswerResponse> {
   }
 }
 
+/**
+ * Interface for bibliography response from the API
+ * Each entry in the bibliography array is a formatted citation string
+ */
+export interface BibliographyResponse {
+  bibliography: string[];  // Array of formatted citation strings
+  fallback?: boolean;      // Flag indicating if fallback mode is used
+  error?: string;          // Optional error message
+}
+
+/**
+ * Get bibliography data for a completed search task
+ * @param taskId The ID of the search task
+ * @param referenceData Optional reference data to match with bibliography entries
+ * @returns Bibliography entries, filtered by reference data if provided
+ */
+export async function getBibliography(
+  taskId: string, 
+  referenceData?: { title?: string, authors?: string[], year?: number }
+): Promise<BibliographyResponse> {
+  try {
+    const url = getProxyUrl(`/bibliography/${taskId}`);
+    console.log(`Fetching bibliography from: ${url}`);
+    
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      // If task not found or not completed, return empty bibliography
+      if (response.status === 404 || response.status === 400) {
+        console.warn(`Bibliography not available for task ${taskId}: ${response.statusText}`);
+        return { bibliography: [] };
+      }
+      throw new Error(`Error getting bibliography: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Check if we got a fallback error from the proxy
+    if (data.fallback === true && data.error) {
+      console.warn(`Bibliography error: ${data.error}`);
+      return { bibliography: [] };
+    }
+
+    // If reference data is provided, filter the bibliography to find matching entries
+    if (referenceData && data.bibliography && Array.isArray(data.bibliography)) {
+      // Filter bibliography entries that match the current reference
+      const filteredBibliography = data.bibliography.filter((citation: string) => {
+        // Convert to lowercase for case-insensitive matching
+        const citationLower = citation.toLowerCase();
+        
+        // Check if the citation contains the reference title
+        if (referenceData.title && citationLower.includes(referenceData.title.toLowerCase())) {
+          return true;
+        }
+        
+        // Check if the citation contains the reference year
+        if (referenceData.year && citationLower.includes(referenceData.year.toString())) {
+          return true;
+        }
+        
+        // Check if the citation contains any of the authors
+        if (referenceData.authors && referenceData.authors.length > 0) {
+          const authorMatch = referenceData.authors.some(author => 
+            citationLower.includes(author.toLowerCase())
+          );
+          if (authorMatch) return true;
+        }
+        
+        return false;
+      });
+      
+      return { bibliography: filteredBibliography };
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`Error getting bibliography for task ${taskId}:`, error);
+    // Return empty array instead of throwing to make this non-blocking
+    return { bibliography: [] };
+  }
+}
 /**
  * Create a proxy URL for API requests from the browser
  * This helps avoid CORS issues by routing through Next.js API routes

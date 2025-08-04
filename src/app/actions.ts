@@ -274,7 +274,7 @@ export const searchJournals = async (
       title: source.title || "Unknown Title",
       authors: source.author ? [source.author] : ["Unknown Author"],
       year: source.year ? parseInt(source.year) : new Date().getFullYear(),
-      journal: (source.journal || "Unknown Journal").toUpperCase(), // Convert journal name to uppercase
+      journal: (source.publisher || "Unknown Journal").toUpperCase(), // Convert journal name to uppercase
       doi: source.doi || "",
       url: source.url || "",
       pdfUrl: source.pdfUrl || "",
@@ -284,7 +284,8 @@ export const searchJournals = async (
     return {
       answer: answerData.answer,
       references: references,
-      taskId: taskId, // Store task ID for potential future bibliography calls
+      bibliography: answerData.bibliography || [], // Include bibliography from the backend
+      taskId: taskId, // Store task ID for potential future needs
     };
   } catch (error) {
     console.error("Error searching journals:", error);
@@ -339,9 +340,17 @@ export const searchJournals = async (
       <p>The consensus across these studies suggests that interdisciplinary approaches combining technological innovation, policy reform, and community engagement offer the most promising path forward for addressing climate-related challenges.</p>
     `;
 
+    // Create mock bibliography entries for fallback
+    const mockBibliography = [
+      "Smith, J., Johnson, A., & Williams, R. (2022). The Impact of Climate Change on Global Biodiversity. Journal of Environmental Science. https://doi.org/10.1234/jes.2022.1234",
+      "Chen, L., & Garcia, M. (2021). Machine Learning Approaches to Climate Prediction. Computational Environmental Science. https://doi.org/10.1234/ces.2021.5678",
+      "Brown, K., Miller, S., Davis, T., & Wilson, P. (2023). Policy Frameworks for Climate Adaptation in Coastal Regions. Environmental Policy Review. https://doi.org/10.1234/epr.2023.9012"
+    ];
+
     return {
       answer: mockAnswer,
       references: mockReferences,
+      bibliography: mockBibliography,
     };
   }
 };

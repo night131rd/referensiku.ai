@@ -36,6 +36,8 @@ export default function SearchResults({
   const [result, setResult] = useState<{
     answer: string;
     references: JournalReference[];
+    bibliography?: string[];
+    taskId?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -92,7 +94,7 @@ export default function SearchResults({
     );
   }
 
-  const { answer, references } = result;
+  const { answer, references, bibliography } = result;
 
   return (
     <div className="mt-8 space-y-6">
@@ -100,7 +102,10 @@ export default function SearchResults({
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
         <h2 className="text-xl font-semibold mb-4">Jawaban Pencarian</h2>
         <div className="prose max-w-none">
-          <div dangerouslySetInnerHTML={{ __html: answer }} />
+          <div 
+            dangerouslySetInnerHTML={{ __html: formatAnswerText(answer) }} 
+            className="text-justify search-results-content"
+          />
         </div>
       </div>
 
@@ -109,7 +114,13 @@ export default function SearchResults({
         <h2 className="text-xl font-semibold mb-4">Referensi </h2>
         <div className="space-y-4">
           {references.map((reference, index) => (
-            <Reference key={index} reference={reference} index={index} />
+            <Reference 
+              key={index} 
+              reference={reference} 
+              index={index} 
+              taskId={result.taskId}
+              bibliography={bibliography}
+            />
           ))}
 
           {references.length === 0 && (
@@ -268,11 +279,63 @@ function SearchProgress({
 function Reference({
   reference,
   index,
+  taskId,
+  bibliography: allBibliography,
 }: {
   reference: JournalReference;
   index: number;
+  taskId?: string;
+  bibliography?: string[];
 }) {
   const [showFullAbstract, setShowFullAbstract] = useState(false);
+  const [showBibliography, setShowBibliography] = useState(false);
+  
+  // Get bibliography entry that matches this reference's index
+
+  const getBibliographyEntry = (): string => {
+    if (!allBibliography || allBibliography.length === 0) {
+      // Jika tidak ada data bibliography, gunakan format fallback
+      return `${reference.authors.join(', ')}. (${reference.year}). ${reference.title}. ${reference.journal}.`;
+    }
+    
+    // Cari entri bibliography yang cocok dengan referensi ini
+    const titleLower = reference.title.toLowerCase();
+    const authorLastNames = reference.authors.map(author => {
+      const nameParts = author.split(' ');
+      return nameParts[nameParts.length - 1].toLowerCase();
+    });
+    const yearStr = reference.year.toString();
+    
+    // Coba temukan kecocokan berdasarkan judul, penulis, atau tahun
+    const matchingEntry = allBibliography.find(entry => {
+      const entryLower = entry.toLowerCase();
+      
+      // Periksa kecocokan judul (lebih diprioritaskan)
+      if (entryLower.includes(titleLower)) {
+        return true;
+      }
+      
+      // Periksa kecocokan nama penulis DAN tahun untuk konfirmasi
+      const hasYear = entryLower.includes(yearStr);
+      if (hasYear) {
+        // Periksa jika nama penulis ada dalam entri
+        return authorLastNames.some(name => entryLower.includes(name));
+      }
+      
+      return false;
+    });
+    
+    // Gunakan entri yang cocok atau fallback ke format standar
+    return matchingEntry || `${reference.authors.join(', ')}. (${reference.year}). ${reference.title}. ${reference.journal}.`;
+  };
+  
+  // Get bibliography entry for this reference
+  const bibliographyEntry = getBibliographyEntry();
+  
+  // Toggle bibliography visibility
+  const toggleBibliography = () => {
+    setShowBibliography(!showBibliography);
+  };
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -333,6 +396,29 @@ function Reference({
               </div>
             )}
           </div>
+          
+          {/* Bibliography section toggle button */}
+          <div className="mt-3">
+            <button
+              onClick={toggleBibliography}
+              className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              {showBibliography ? "Sembunyikan Daftar Pustaka" : "Tampilkan Daftar Pustaka"}
+              <span className="ml-1 text-xs">
+                {showBibliography ? "▲" : "▼"}
+              </span>
+            </button>
+            
+            {/* Bibliography content */}
+            {showBibliography && (
+              <div className="mt-2 bg-gray-50 p-3 rounded-md border border-gray-200 text-sm">
+                <h4 className="font-medium mb-2 text-xs text-gray-600">Daftar Pustaka:</h4>
+                <ul className="list-disc pl-4 space-y-2">
+                  <li className="text-xs text-gray-700">{bibliographyEntry}</li>
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
         <div className="ml-4 flex flex-col items-center justify-center bg-gray-50 rounded-lg p-3 text-center min-w-[60px]">
           <span className="text-2xl font-bold text-blue-600">{index + 1}</span>
@@ -357,6 +443,14 @@ function Reference({
               <p className="text-gray-600 text-sm mb-4">
                 <span className="font-medium">Sumber:</span> {reference.journal}
               </p>
+              
+              {/* Bibliography section in modal */}
+              <div className="mb-6 bg-gray-50 p-4 rounded-md border border-gray-200">
+                <h4 className="font-medium mb-3 text-sm text-gray-700">Daftar Pustaka:</h4>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li className="text-sm text-gray-700">{bibliographyEntry}</li>
+                </ul>
+              </div>
               
               {/* External links in modal */}
               <div className="flex space-x-3 mb-6">
@@ -398,4 +492,146 @@ function Reference({
       )}
     </div>
   );
+}
+
+// Function to format answer text with proper styling and handle numbered points
+function formatAnswerText(text: string): string {
+  // Check if text is already HTML
+  if (text.includes('<p>') || text.includes('<div>')) {
+    // For HTML content, add CSS classes to paragraphs and lists
+    return text
+      .replace(/<p>/g, '<p class="text-justify mb-4">')
+      .replace(/<ul>/g, '<ul class="list-disc pl-6 space-y-2 mb-4">')
+      .replace(/<ol>/g, '<ol class="list-decimal pl-6 space-y-2 mb-4">')
+      .replace(/<li>/g, '<li class="mb-1">');
+  }
+
+  // Handle text with special formatting like "**1. Point:**"
+  const specialFormatRegex = /\*\*(\d+)\.\s*(.*?)(:)?\*\*/g;
+  if (specialFormatRegex.test(text)) {
+    let html = '';
+    
+    // First, process the introduction (text before first numbered point)
+    const introEndIndex = text.indexOf('**1.');
+    if (introEndIndex > 0) {
+      const intro = text.substring(0, introEndIndex).trim();
+      if (intro) {
+        html += `<p class="text-justify mb-4">${intro}</p>`;
+      }
+    }
+    
+    // Split text by numbered points
+    const sections = text.split(/\*\*\d+\./);
+    
+    // Skip the first section (intro) since we already processed it
+    for (let i = 1; i < sections.length; i++) {
+      const section = sections[i];
+      
+      // Extract the title and content
+      const titleEndIndex = section.indexOf('**');
+      if (titleEndIndex === -1) continue;
+      
+      const title = section.substring(0, titleEndIndex).trim();
+      const content = section.substring(titleEndIndex + 2).trim();
+      
+      // Add the formatted title
+      html += `<h3 class="font-bold text-blue-700 mt-5 mb-3">${i}. ${title}</h3>`;
+      
+      // Process the content - handle bullet points if present
+      if (content.includes('* ') || content.match(/\n\s*\*/)) {
+        // Split content by lines to identify bullet points
+        const lines = content.split('\n');
+        let bulletList = [];
+        let currentParagraph = '';
+        
+        for (let line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine.startsWith('*')) {
+            // If we have accumulated paragraph text, add it first
+            if (currentParagraph) {
+              html += `<p class="text-justify mb-4">${currentParagraph}</p>`;
+              currentParagraph = '';
+            }
+            
+            // Add this line to bullet list
+            bulletList.push(`<li class="mb-2">${trimmedLine.substring(1).trim()}</li>`);
+          } else if (bulletList.length > 0) {
+            // We've finished a bullet list, add it
+            html += `<ul class="list-disc pl-6 space-y-2 mb-4">${bulletList.join('')}</ul>`;
+            bulletList = [];
+            
+            // Start a new paragraph
+            if (trimmedLine) {
+              currentParagraph = trimmedLine;
+            }
+          } else {
+            // Add to current paragraph or start new one
+            if (currentParagraph && trimmedLine) {
+              currentParagraph += ' ' + trimmedLine;
+            } else if (trimmedLine) {
+              currentParagraph = trimmedLine;
+            } else if (currentParagraph) {
+              // Empty line after paragraph - add the paragraph
+              html += `<p class="text-justify mb-4">${currentParagraph}</p>`;
+              currentParagraph = '';
+            }
+          }
+        }
+        
+        // Add any remaining bullet list
+        if (bulletList.length > 0) {
+          html += `<ul class="list-disc pl-6 space-y-2 mb-4">${bulletList.join('')}</ul>`;
+        }
+        
+        // Add any remaining paragraph
+        if (currentParagraph) {
+          html += `<p class="text-justify mb-4">${currentParagraph}</p>`;
+        }
+      } else {
+        // Just regular text content - add as paragraph
+        html += `<p class="text-justify mb-4">${content}</p>`;
+      }
+    }
+    
+    return html;
+  }
+  
+  // Standard processing for text without special formatting
+  let html = '';
+  const paragraphs = text.split(/\n\n+/);
+  
+  for (const paragraph of paragraphs) {
+    if (!paragraph.trim()) continue;
+    
+    if (paragraph.match(/^\d+\.\s/m)) {
+      // This looks like a numbered list
+      const items = paragraph
+        .split(/\n/)
+        .filter(line => line.trim())
+        .map(line => {
+          // Extract just the content after the number
+          const content = line.replace(/^\d+\.\s+/, '').trim();
+          return `<li class="mb-2">${content}</li>`;
+        });
+      
+      html += `<ol class="list-decimal pl-6 space-y-2 mb-4">${items.join('')}</ol>`;
+    } else if (paragraph.match(/^\*\s/m)) {
+      // This looks like a bullet list
+      const items = paragraph
+        .split(/\n/)
+        .filter(line => line.trim())
+        .map(line => {
+          // Extract just the content after the asterisk
+          const content = line.replace(/^\*\s+/, '').trim();
+          return `<li class="mb-2">${content}</li>`;
+        });
+      
+      html += `<ul class="list-disc pl-6 space-y-2 mb-4">${items.join('')}</ul>`;
+    } else {
+      // Regular paragraph
+      html += `<p class="text-justify mb-4">${paragraph}</p>`;
+    }
+  }
+
+  return html;
 }

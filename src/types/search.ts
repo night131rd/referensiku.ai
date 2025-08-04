@@ -17,4 +17,5 @@ export interface SearchResult {
   answer: string;
   references: JournalReference[];
   taskId?: string; // Task ID for tracking search with backend
+  bibliography?: string[]; // Bibliography entries returned from the backend
 }
