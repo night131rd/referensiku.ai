@@ -240,7 +240,7 @@ export const searchJournals = async (
     
     do {
       // Wait a bit between status checks
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       status = await api.checkSearchStatus(taskId);
       retries++;
@@ -281,10 +281,18 @@ export const searchJournals = async (
       abstract: source.teks || "",
     }));
 
+    // Pastikan bibliography adalah array of strings
+    let bibliography: string[] = [];
+    if (answerData.bibliography && Array.isArray(answerData.bibliography)) {
+      bibliography = answerData.bibliography
+        .filter(item => item && typeof item === 'string')
+        .map(item => item.toString());
+    }
+    
     return {
       answer: answerData.answer,
       references: references,
-      bibliography: answerData.bibliography || [], // Include bibliography from the backend
+      bibliography: bibliography,
       taskId: taskId, // Store task ID for potential future needs
     };
   } catch (error) {
@@ -292,59 +300,23 @@ export const searchJournals = async (
     
     // Fall back to the mock implementation if the backend fails
     console.log("Falling back to mock implementation");
-    
+    33
     // Simulate API call delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // Mock references
     const mockReferences: JournalReference[] = [
-      {
-        title: "The Impact of Climate Change on Global Biodiversity",
-        authors: ["Smith, J.", "Johnson, A.", "Williams, R."],
-        year: 2022,
-        journal: "JOURNAL OF ENVIRONMENTAL SCIENCE", // Uppercase journal name
-        doi: "10.1234/jes.2022.1234",
-        url: "https://example.com/journal/climate-change",
-        pdfUrl: "https://example.com/pdf/climate-change.pdf",
-        abstract:
-          "This study examines the wide-ranging effects of climate change on biodiversity across different ecosystems worldwide. The findings suggest significant impacts on species distribution and ecosystem functioning.",
-      },
-      {
-        title: "Machine Learning Approaches to Climate Prediction",
-        authors: ["Chen, L.", "Garcia, M."],
-        year: 2021,
-        journal: "COMPUTATIONAL ENVIRONMENTAL SCIENCE", // Uppercase journal name
-        doi: "10.1234/ces.2021.5678",
-        url: "https://example.com/journal/ml-climate",
-        abstract:
-          "This paper presents novel machine learning techniques for predicting climate patterns and extreme weather events with improved accuracy.",
-      },
-      {
-        title: "Policy Frameworks for Climate Adaptation in Coastal Regions",
-        authors: ["Brown, K.", "Miller, S.", "Davis, T.", "Wilson, P."],
-        year: 2023,
-        journal: "ENVIRONMENTAL POLICY REVIEW", // Uppercase journal name
-        doi: "10.1234/epr.2023.9012",
-        pdfUrl: "https://example.com/pdf/policy-climate.pdf",
-      },
+      
     ];
 
-    // Generate a mock answer with citations
+    // Generate an error log for user
     const mockAnswer = `
-      <p>Research on ${query} has shown significant developments in recent years. Smith et al. (2022) demonstrated that climate change has profound effects on global biodiversity, with particular impact on marine ecosystems. Their findings indicate a 15% reduction in species diversity in affected areas.</p>
-      
-      <p>Furthermore, computational approaches have revolutionized how we understand climate patterns. Chen and Garcia (2021) developed machine learning models that improve prediction accuracy by 23% compared to traditional methods. These models are particularly effective at identifying early warning signs of extreme weather events.</p>
-      
-      <p>From a policy perspective, Brown et al. (2023) proposed a comprehensive framework for climate adaptation in coastal regions that integrates scientific findings with practical governance structures. Their approach has been implemented in several coastal communities with promising initial results.</p>
-      
-      <p>The consensus across these studies suggests that interdisciplinary approaches combining technological innovation, policy reform, and community engagement offer the most promising path forward for addressing climate-related challenges.</p>
+      <p> Pencarian ${query} mengalami error. Silakan coba lagi nanti.</p>
     `;
 
     // Create mock bibliography entries for fallback
-    const mockBibliography = [
-      "Smith, J., Johnson, A., & Williams, R. (2022). The Impact of Climate Change on Global Biodiversity. Journal of Environmental Science. https://doi.org/10.1234/jes.2022.1234",
-      "Chen, L., & Garcia, M. (2021). Machine Learning Approaches to Climate Prediction. Computational Environmental Science. https://doi.org/10.1234/ces.2021.5678",
-      "Brown, K., Miller, S., Davis, T., & Wilson, P. (2023). Policy Frameworks for Climate Adaptation in Coastal Regions. Environmental Policy Review. https://doi.org/10.1234/epr.2023.9012"
+    const mockBibliography: string[] = [
+      "Tidak dapat menampilkan sumber karena terjadi kesalahan pada server. Silakan coba lagi nanti."
     ];
 
     return {

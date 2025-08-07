@@ -298,6 +298,12 @@ function Reference({
       return `${reference.authors.join(', ')}. (${reference.year}). ${reference.title}. ${reference.journal}.`;
     }
     
+    // Jika bibliografi tersedia berdasarkan urutan indeks, gunakan itu
+    if (allBibliography[index] && typeof allBibliography[index] === 'string') {
+      return allBibliography[index];
+    }
+    
+    // Jika tidak sesuai indeks, coba temukan berdasarkan konten
     // Cari entri bibliography yang cocok dengan referensi ini
     const titleLower = reference.title.toLowerCase();
     const authorLastNames = reference.authors.map(author => {
@@ -308,18 +314,26 @@ function Reference({
     
     // Coba temukan kecocokan berdasarkan judul, penulis, atau tahun
     const matchingEntry = allBibliography.find(entry => {
-      const entryLower = entry.toLowerCase();
+      // Pastikan entry adalah string
+      if (!entry || typeof entry !== 'string') return false;
       
-      // Periksa kecocokan judul (lebih diprioritaskan)
-      if (entryLower.includes(titleLower)) {
-        return true;
-      }
-      
-      // Periksa kecocokan nama penulis DAN tahun untuk konfirmasi
-      const hasYear = entryLower.includes(yearStr);
-      if (hasYear) {
-        // Periksa jika nama penulis ada dalam entri
-        return authorLastNames.some(name => entryLower.includes(name));
+      try {
+        const entryLower = entry.toLowerCase();
+        
+        // Periksa kecocokan judul (lebih diprioritaskan)
+        if (entryLower.includes(titleLower)) {
+          return true;
+        }
+        
+        // Periksa kecocokan nama penulis DAN tahun untuk konfirmasi
+        const hasYear = entryLower.includes(yearStr);
+        if (hasYear) {
+          // Periksa jika nama penulis ada dalam entri
+          return authorLastNames.some(name => entryLower.includes(name));
+        }
+      } catch (e) {
+        console.error("Error processing bibliography entry:", e);
+        return false;
       }
       
       return false;
@@ -494,8 +508,15 @@ function Reference({
   );
 }
 
-// Function to format answer text with proper styling and handle numbered points
+// Function to format answer text with proper styling and handle Markdown formatting
 function formatAnswerText(text: string): string {
+  // Step 1: Handle Markdown formatting (bold and italic)
+  text = text
+    // Convert **text** to <strong>text</strong> (bold)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Convert *text* to <em>text</em> (italic)
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
   // Check if text is already HTML
   if (text.includes('<p>') || text.includes('<div>')) {
     // For HTML content, add CSS classes to paragraphs and lists
