@@ -24,7 +24,7 @@ export default function SearchForm({
   const [query, setQuery] = useState(defaultQuery);
   const [startYear, setStartYear] = useState(defaultStartYear);
   const [endYear, setEndYear] = useState(defaultEndYear);
-  const mode = "quick"; // Fixed to quick mode
+  const [mode, setMode] = useState(defaultMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentYear = new Date().getFullYear();
@@ -40,7 +40,7 @@ export default function SearchForm({
     searchParams.set("query", query);
     if (startYear) searchParams.set("startYear", startYear);
     if (endYear) searchParams.set("endYear", endYear);
-    searchParams.set("mode", mode);
+    if (mode) searchParams.set("mode", mode);
 
     // Navigate to the search page with the parameters
     router.push(`/search?${searchParams.toString()}`);

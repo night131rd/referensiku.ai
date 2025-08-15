@@ -36,7 +36,7 @@ export default function DashboardNavbar() {
               <span className="h-2 w-2 bg-yellow-500 rounded-full inline-block"></span>
               <span className="h-2 w-2 bg-red-500 rounded-full inline-block"></span>
             </span>
-            ChatJurnal
+            JurnalGPT
           </Link>
           <div className="hidden md:flex gap-1">
             <Button variant="ghost" size="sm" asChild>

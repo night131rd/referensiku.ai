@@ -104,7 +104,7 @@ export default function SearchResults({
         <div className="prose max-w-none">
           <div 
             dangerouslySetInnerHTML={{ __html: formatAnswerText(answer) }} 
-            className="text-justify search-results-content"
+            className="search-results-content"
           />
         </div>
       </div>
@@ -148,13 +148,13 @@ function SearchProgress({
       <div className="flex flex-col items-center mb-6">
         <h2 className="text-lg font-medium text-center mb-2">Menganalisis sumber akademis...</h2>
         <div className="flex items-center justify-center gap-2 mb-1">
-          <span className="font-semibold text-blue-600 text-xl">{journalsFound}</span>
+          <span className="font-semibold text-violet-600 text-xl">{journalsFound}</span>
           <span className="text-gray-600">jurnal ditemukan</span>
         </div>
         <div className="text-sm font-medium text-gray-500 mb-2">{progress}% selesai</div>
       </div>
 
-      <div className="relative h-2 bg-blue-100 rounded-full overflow-hidden">
+      <div className="relative h-2 bg-violet-100 rounded-full overflow-hidden">
         <div
           className="absolute top-0 left-0 h-full bg-violet-600 transition-all duration-300 ease-in-out"
           style={{ width: `${progress}%` }}
@@ -166,7 +166,7 @@ function SearchProgress({
           <div
             className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
-              state === "searching" ? "bg-blue-600 scale-110" : state === "found" || state === "processing" || state === "complete" ? "bg-green-500" : "bg-gray-200"
+              state === "searching" ? "bg-violet-600 scale-110" : state === "found" || state === "processing" || state === "complete" ? "bg-green-500" : "bg-gray-200"
             )}
           >
             {state === "searching" ? (
@@ -179,7 +179,7 @@ function SearchProgress({
             className={cn(
               "text-xs text-center",
               state === "searching"
-                ? "text-blue-600 font-medium"
+                ? "text-violet-600 font-medium"
                 : state === "found" || state === "processing" || state === "complete"
                   ? "text-green-500 font-medium"
                   : "text-gray-400"
@@ -193,7 +193,7 @@ function SearchProgress({
           <div
             className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
-              state === "found" ? "bg-blue-600 scale-110" : state === "processing" || state === "complete" ? "bg-green-500" : "bg-gray-200"
+              state === "found" ? "bg-violet-600 scale-110" : state === "processing" || state === "complete" ? "bg-green-500" : "bg-gray-200"
             )}
           >
             {state === "found" ? (
@@ -206,7 +206,7 @@ function SearchProgress({
             className={cn(
               "text-xs text-center",
               state === "found"
-                ? "text-blue-600 font-medium"
+                ? "text-violet-600 font-medium"
                 : state === "processing" || state === "complete"
                   ? "text-green-500 font-medium"
                   : "text-gray-400"
@@ -220,7 +220,7 @@ function SearchProgress({
           <div
             className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
-              state === "processing" ? "bg-blue-600 scale-110" : state === "complete" ? "bg-green-500" : "bg-gray-200"
+              state === "processing" ? "bg-violet-600 scale-110" : state === "complete" ? "bg-green-500" : "bg-gray-200"
             )}
           >
             {state === "processing" ? (
@@ -233,7 +233,7 @@ function SearchProgress({
             className={cn(
               "text-xs text-center",
               state === "processing"
-                ? "text-blue-600 font-medium"
+                ? "text-violet-600 font-medium"
                 : state === "complete"
                   ? "text-green-500 font-medium"
                   : "text-gray-400"
@@ -508,151 +508,14 @@ function Reference({
   );
 }
 
-// Function to format answer text with proper styling and handle Markdown formatting
+// Function to format answer text with minimal styling - showing plain text
 function formatAnswerText(text: string): string {
-  // Step 1: Handle Markdown formatting (bold and italic)
-  text = text
-    // Convert **text** to <strong>text</strong> (bold)
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    // Convert *text* to <em>text</em> (italic)
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-  // Check if text is already HTML
-  if (text.includes('<p>') || text.includes('<div>')) {
-    // For HTML content, add CSS classes to paragraphs and lists
-    return text
-      .replace(/<p>/g, '<p class="text-justify mb-4">')
-      .replace(/<ul>/g, '<ul class="list-disc pl-6 space-y-2 mb-4">')
-      .replace(/<ol>/g, '<ol class="list-decimal pl-6 space-y-2 mb-4">')
-      .replace(/<li>/g, '<li class="mb-1">');
-  }
-
-  // Handle text with special formatting like "**1. Point:**"
-  const specialFormatRegex = /\*\*(\d+)\.\s*(.*?)(:)?\*\*/g;
-  if (specialFormatRegex.test(text)) {
-    let html = '';
-    
-    // First, process the introduction (text before first numbered point)
-    const introEndIndex = text.indexOf('**1.');
-    if (introEndIndex > 0) {
-      const intro = text.substring(0, introEndIndex).trim();
-      if (intro) {
-        html += `<p class="text-justify mb-4">${intro}</p>`;
-      }
-    }
-    
-    // Split text by numbered points
-    const sections = text.split(/\*\*\d+\./);
-    
-    // Skip the first section (intro) since we already processed it
-    for (let i = 1; i < sections.length; i++) {
-      const section = sections[i];
-      
-      // Extract the title and content
-      const titleEndIndex = section.indexOf('**');
-      if (titleEndIndex === -1) continue;
-      
-      const title = section.substring(0, titleEndIndex).trim();
-      const content = section.substring(titleEndIndex + 2).trim();
-      
-      // Add the formatted title
-      html += `<h3 class="font-bold text-blue-700 mt-5 mb-3">${i}. ${title}</h3>`;
-      
-      // Process the content - handle bullet points if present
-      if (content.includes('* ') || content.match(/\n\s*\*/)) {
-        // Split content by lines to identify bullet points
-        const lines = content.split('\n');
-        let bulletList = [];
-        let currentParagraph = '';
-        
-        for (let line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine.startsWith('*')) {
-            // If we have accumulated paragraph text, add it first
-            if (currentParagraph) {
-              html += `<p class="text-justify mb-4">${currentParagraph}</p>`;
-              currentParagraph = '';
-            }
-            
-            // Add this line to bullet list
-            bulletList.push(`<li class="mb-2">${trimmedLine.substring(1).trim()}</li>`);
-          } else if (bulletList.length > 0) {
-            // We've finished a bullet list, add it
-            html += `<ul class="list-disc pl-6 space-y-2 mb-4">${bulletList.join('')}</ul>`;
-            bulletList = [];
-            
-            // Start a new paragraph
-            if (trimmedLine) {
-              currentParagraph = trimmedLine;
-            }
-          } else {
-            // Add to current paragraph or start new one
-            if (currentParagraph && trimmedLine) {
-              currentParagraph += ' ' + trimmedLine;
-            } else if (trimmedLine) {
-              currentParagraph = trimmedLine;
-            } else if (currentParagraph) {
-              // Empty line after paragraph - add the paragraph
-              html += `<p class="text-justify mb-4">${currentParagraph}</p>`;
-              currentParagraph = '';
-            }
-          }
-        }
-        
-        // Add any remaining bullet list
-        if (bulletList.length > 0) {
-          html += `<ul class="list-disc pl-6 space-y-2 mb-4">${bulletList.join('')}</ul>`;
-        }
-        
-        // Add any remaining paragraph
-        if (currentParagraph) {
-          html += `<p class="text-justify mb-4">${currentParagraph}</p>`;
-        }
-      } else {
-        // Just regular text content - add as paragraph
-        html += `<p class="text-justify mb-4">${content}</p>`;
-      }
-    }
-    
-    return html;
-  }
+  // Minimal handling of text - just wrap in a div with simple spacing
+  // Keep Markdown symbols as is, just handle line breaks for readability
   
-  // Standard processing for text without special formatting
-  let html = '';
-  const paragraphs = text.split(/\n\n+/);
+  // Replace newlines with line breaks to preserve formatting
+  text = text.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
   
-  for (const paragraph of paragraphs) {
-    if (!paragraph.trim()) continue;
-    
-    if (paragraph.match(/^\d+\.\s/m)) {
-      // This looks like a numbered list
-      const items = paragraph
-        .split(/\n/)
-        .filter(line => line.trim())
-        .map(line => {
-          // Extract just the content after the number
-          const content = line.replace(/^\d+\.\s+/, '').trim();
-          return `<li class="mb-2">${content}</li>`;
-        });
-      
-      html += `<ol class="list-decimal pl-6 space-y-2 mb-4">${items.join('')}</ol>`;
-    } else if (paragraph.match(/^\*\s/m)) {
-      // This looks like a bullet list
-      const items = paragraph
-        .split(/\n/)
-        .filter(line => line.trim())
-        .map(line => {
-          // Extract just the content after the asterisk
-          const content = line.replace(/^\*\s+/, '').trim();
-          return `<li class="mb-2">${content}</li>`;
-        });
-      
-      html += `<ul class="list-disc pl-6 space-y-2 mb-4">${items.join('')}</ul>`;
-    } else {
-      // Regular paragraph
-      html += `<p class="text-justify mb-4">${paragraph}</p>`;
-    }
-  }
-
-  return html;
+  // Wrap the entire content in a simple div with readable styling
+  return `<div class="text-gray-800 whitespace-pre-wrap">${text}</div>`;
 }

@@ -19,7 +19,7 @@ export default async function Navbar() {
                 className="h-7 w-auto"
               />
             </div>
-            ChatJurnal
+            JurnalGPT
           </Link>
         </div>
     
@@ -33,12 +33,6 @@ export default async function Navbar() {
             <>
               <Link href="/sign-in" className="text-gray-800 hover:text-gray-900">
                 Sign in
-              </Link>
-              <Link 
-                href="/sign-up" 
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-800"
-              >
-                Get demo
               </Link>
             </>
           )}

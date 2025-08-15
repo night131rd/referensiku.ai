@@ -54,7 +54,7 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
     // Check if API_URL is empty or undefined in Vercel environment
     if (!apiUrl || apiUrl.trim() === '') {
       // Hardcode the URL in production as a fallback
-      apiUrl = 'https://referensiku-backend-production.up.railway.app';
+      apiUrl = 'http://0.0.0.0:8000';
       console.log('Empty API_URL, using hardcoded fallback:', apiUrl);
     }
     
