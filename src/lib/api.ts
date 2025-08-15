@@ -2,6 +2,9 @@
  * API client for interacting with the backend
  */
 
+// Track active requests to avoid duplicates
+const activeRequests = new Map<string, Promise<any>>();
+
 export interface SearchResponse {
   task_id: string;
   status: string;
@@ -29,7 +32,7 @@ export interface AnswerResponse {
 }
 
 // Ensure API_URL has the correct format with https:// prefix
-let baseApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+let baseApiUrl = process.env.NEXT_PUBLIC_API_URL || 'msdocs-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmeg.indonesiacentral-01.azurewebsites.net';
 
 // Add https:// if it doesn't have a protocol
 if (!baseApiUrl.startsWith('http://') && !baseApiUrl.startsWith('https://')) {
@@ -43,38 +46,64 @@ baseApiUrl = baseApiUrl.replace(/\/+$/, '');
  * Start a search request to the backend
  */
 export async function startSearch(query: string, year?: string, mode: string = 'quick'): Promise<SearchResponse> {
-  try {
-    const url = getProxyUrl('/search');
-    console.log(`Starting search request to: ${url}`);
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        year: year || '-',
-        mode
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error starting search: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // Check if we got a fallback error from the proxy
-    if (data.fallback === true && data.error) {
-      throw new Error(data.error);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Search request failed:', error);
-    throw error;
+  // Create a unique key for this request
+  const requestKey = `search-${query}-${year}-${mode}`;
+  
+  // If we already have an active request for this exact query, return the existing promise
+  if (activeRequests.has(requestKey)) {
+    console.log(`🔄 CACHE HIT: Returning existing request for ${requestKey}`);
+    return activeRequests.get(requestKey)!;
   }
+  
+  console.log(`🚀 NEW REQUEST: Starting search for ${requestKey}`);
+  
+  // Create a new promise for this request
+  const requestPromise = (async () => {
+    try {
+      const url = getProxyUrl('/search');
+      console.log(`Starting search request to: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          year: year || '-',
+          mode
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error starting search: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Check if we got a fallback error from the proxy
+      if (data.fallback === true && data.error) {
+        throw new Error(data.error);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Search request failed:', error);
+      throw error;
+    } finally {
+      // Remove this request from the active requests map after a delay
+      // This allows some time before accepting identical requests again
+      setTimeout(() => {
+        activeRequests.delete(requestKey);
+      }, 2000);
+    }
+  })();
+  
+  // Store the promise in our map
+  activeRequests.set(requestKey, requestPromise);
+  
+  // Return the promise
+  return requestPromise;
 }
 
 /**
@@ -225,4 +254,26 @@ export function getProxyUrl(path: string): string {
   
   // For server-side code, use the direct URL
   return `${baseApiUrl}${formattedPath}`;
+}
+
+/**
+ * Utility function to debounce repeated calls
+ * @param func The function to debounce
+ * @param wait Time to wait in milliseconds before executing
+ */
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  return function(...args: Parameters<T>) {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    
+    timeout = setTimeout(() => {
+      func(...args);
+    }, wait);
+  };
 }

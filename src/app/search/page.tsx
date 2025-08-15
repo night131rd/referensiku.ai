@@ -35,7 +35,7 @@ export default async function SearchPage({
             <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
               <h1 className="text-3xl font-bold mb-3 text-center text-gray-800">Ada yang aku bisa bantu cari?</h1>
               <p className="text-center text-gray-600 mb-6">
-                Temukan referensi akademis terpercaya dari berbagai sumber dalam hitungan detik. ReferensiKu.AI menggunakan AI canggih untuk menganalisis jutaan jurnal dan artikel ilmiah, memberikan jawaban terstruktur sesuai kebutuhan penelitianmu.
+                Jawaban, Kutipan, dan Daftar Pustaka semua dalam satu tempat.
               </p>
               <form method="get">
                 <div className="mb-5">

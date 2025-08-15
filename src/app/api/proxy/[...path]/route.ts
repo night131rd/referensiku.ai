@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Make sure API_URL is properly formatted with https:// if not present
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 console.log('Proxy route using API_URL:', API_URL);
 
 // Replace deprecated config with the new runtime directive
@@ -48,13 +48,17 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
     const pathSegment = '/' + path.join('/');
     const searchParams = url.search;
     
+    // Create a cache key for GET requests
+    const isCacheable = req.method === 'GET';
+    const cacheKey = isCacheable ? `api-${pathSegment}${searchParams}` : '';
+    
     // Construct the backend URL, ensuring proper URL format
     let apiUrl = API_URL;
     
     // Check if API_URL is empty or undefined in Vercel environment
     if (!apiUrl || apiUrl.trim() === '') {
       // Hardcode the URL in production as a fallback
-      apiUrl = 'http://0.0.0.0:8000';
+      apiUrl = 'msdocs-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmeg.indonesiacentral-01.azurewebsites.net';
       console.log('Empty API_URL, using hardcoded fallback:', apiUrl);
     }
     
@@ -90,15 +94,24 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
       method: req.method,
       headers,
       body: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
+      // Prevent caching in the fetch call itself to avoid stale data
+      cache: 'no-store',
     });
     
     // Get the response data
     const data = await response.json();
     
-    // Return the response from the backend
-    return NextResponse.json(data, {
+    // Create the response object
+    const jsonResponse = NextResponse.json(data, {
       status: response.status,
+      // Add cache-control header for client-side caching
+      headers: isCacheable ? {
+        'Cache-Control': 'public, max-age=60, s-maxage=60', // Cache for 60 seconds
+      } : {}
     });
+    
+    // Return the response from the backend
+    return jsonResponse;
   } catch (error) {
     console.error('API proxy error:', error);
     
