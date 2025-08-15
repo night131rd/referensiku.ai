@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <title>ChatJurnal : AI Pencarian Jurnal Akademik</title>
+        <title>JurnalGPT : AI Pencarian Jurnal Akademik</title>
       </head>
       <body>
         {children}
