@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { marked } from "marked";
-import { streamSearchStatus, startSearch } from "@/lib/api";
+import { streamSearchStatus } from "@/lib/api";
 
 interface SearchResultsProps {
   query: string;
@@ -42,6 +42,7 @@ export default function SearchResults({
     taskId?: string;
     phase?: 'waiting' | 'sources' | 'answer' | 'completed';
     answerPending?: boolean;
+    bibliographyPending?: boolean;
   } | null>(null);
   
   // Helper untuk normalisasi sumber
@@ -56,20 +57,20 @@ export default function SearchResults({
     if (s.authors && typeof s.authors === 'string') {
       // Jika authors berupa string, split berdasarkan koma dan bersihkan
       authors = s.authors.split(',')
-        .map((author: string) => author.trim())
-        .filter((author: string) => author.length > 0);
+        .map(author => author.trim())
+        .filter(author => author.length > 0);
     } else if (Array.isArray(s.authors) && s.authors.length > 0) {
-      authors = s.authors.filter((author: string) => author && typeof author === 'string');
+      authors = s.authors.filter(author => author && typeof author === 'string');
     } else if (s.author && typeof s.author === 'string') {
       authors = [s.author];
     } else if (s.creator && typeof s.creator === 'string') {
       authors = [s.creator];
     } else if (s.Authors && typeof s.Authors === 'string') {
       authors = s.Authors.split(',')
-        .map((author: string) => author.trim())
-        .filter((author: string) => author.length > 0);
+        .map(author => author.trim())
+        .filter(author => author.length > 0);
     } else if (s.Authors && Array.isArray(s.Authors)) {
-      authors = s.Authors.filter((author: string) => author && typeof author === 'string');
+      authors = s.Authors.filter(author => author && typeof author === 'string');
     } else if (s.Author && typeof s.Author === 'string') {
       authors = [s.Author];
     }
@@ -107,94 +108,303 @@ export default function SearchResults({
   };
   
   useEffect(() => {
-    let cancelled = false;
+    // Polling untuk answer dan bibliography di background
+    const pollAnswerInBackground = async (taskId: string) => {
+      let retries = 0;
+      const maxRetries = 120; // 120 detik max (lebih lama untuk memastikan bisa selesai)
+      
+      // Polling interval yang lebih agresif untuk mendapatkan hasil lebih cepat
+      const getDelay = (retry: number) => {
+        if (retry < 20) return 300; // 0.3 detik untuk 20 percobaan pertama (lebih agresif)
+        if (retry < 40) return 600; // 0.6 detik untuk percobaan 21-40
+        if (retry < 80) return 1000; // 1 detik untuk percobaan 41-80
+        return 1500; // 1.5 detik untuk percobaan selanjutnya
+      };
 
-    const runSseFlow = async () => {
-      try {
-        setSearchState("searching");
-        setProgress(0);
-        setJournalsFound(0);
-
-        // Mulai pencarian untuk mendapatkan taskId
-        const yearString = `${startYear}-${endYear}`;
-        const startResp = await startSearch(query, yearString, mode);
-        const taskId = startResp.task_id;
-        if (!taskId) {
-          throw new Error("No task_id returned by backend");
-        }
-
-        if (cancelled) return;
-        setResult({
-          answer: '',
-          references: [],
-          bibliography: [],
-          taskId,
-          phase: 'waiting',
-          answerPending: true,
-        });
-
-        // Buka SSE stream dan proses event
-        for await (const event of streamSearchStatus(taskId)) {
-          if (cancelled) break;
-          const phase = event.phase as 'sources' | 'answer' | 'completed';
-
-          if (phase === 'sources' && Array.isArray(event.sources)) {
-            const refs = event.sources.map(normalizeSource);
+      while (retries < maxRetries) {
+        try {
+          const statusResp = await checkSearchStatus(taskId);
+          console.log(`Polling check ${retries}: phase=${statusResp.phase}, sources=${statusResp.sources?.length || 0}`);
+          
+          // Handle answer phase - answer ready but bibliography might not be complete
+          if (statusResp.phase === 'answer' && statusResp.answer) {
+            console.log(`Answer phase ready, updating UI`);
+            // Update result with answer but no bibliography yet
             setResult(prev => ({
-              ...(prev || { answer: '', references: [] }),
-              references: refs,
-              taskId,
-              phase: 'sources',
-              answerPending: true,
-            }));
-            setJournalsFound(refs.length);
-            setSearchState("found");
-            setProgress(60);
-          }
-
-          if (phase === 'answer') {
-            const refs = Array.isArray(event.sources) ? event.sources.map(normalizeSource) : (result?.references || []);
-            setResult(prev => ({
-              ...(prev || { answer: '' , references: []}),
-              references: refs,
-              answer: event.answer || '',
-              taskId,
+              ...prev!,
+              answer: statusResp.answer || '',
+              bibliography: [], // In answer phase, bibliography will be empty
               phase: 'answer',
               answerPending: false,
+              bibliographyPending: true
             }));
             setSearchState("complete");
-            setProgress(90);
+            
+            // Lanjutkan polling untuk mendapatkan bibliography, tidak perlu break
+            // Polling akan terus berlanjut sampai mencapai fase completed
           }
-
-          if (phase === 'completed') {
-            const refs = Array.isArray(event.sources) ? event.sources.map(normalizeSource) : (result?.references || []);
-            const bib = Array.isArray(event.bibliography) ? event.bibliography : [];
+          
+          // Handle completed phase - everything is ready (sources, answer, and bibliography)
+          if (statusResp.phase === 'completed' && statusResp.answer) {
+            console.log(`Completed phase ready, updating UI with bibliography`);
+            // Update result with complete data including bibliography
             setResult(prev => ({
-              ...(prev || { answer: '' , references: []}),
-              references: refs,
-              answer: event.answer || (prev?.answer || ''),
-              bibliography: bib,
-              taskId,
+              ...prev!,
+              answer: statusResp.answer || '',
+              bibliography: (statusResp.bibliography || []).filter((b: any) => typeof b === 'string'),
               phase: 'completed',
               answerPending: false,
+              bibliographyPending: false
             }));
             setSearchState("complete");
+            
+            // Selesai polling setelah mendapatkan semua data
+            console.log(`Polling selesai: semua data telah diterima`);
+            break;
+          }
+          
+          // Jika sources bertambah, update referensi
+          if (statusResp.phase === 'sources' && statusResp.sources && statusResp.sources.length > 0) {
+            console.log(`Updating sources: ${statusResp.sources.length} items`);
+            setResult(prev => {
+              // Hanya update sources jika jumlahnya bertambah
+              if (!prev || statusResp.sources.length > prev.references.length) {
+                return {
+                  ...prev!,
+                  references: statusResp.sources.map(normalizeSource),
+                };
+              }
+              return prev;
+            });
+          }
+          
+          // Update progress animation
+          setProgress(60 + Math.min(39, retries));
+        } catch (error) {
+          console.warn("Answer polling error:", error);
+        }
+        
+        retries++;
+        await new Promise(r => setTimeout(r, getDelay(retries)));
+      }
+      
+      // Pastikan UI menyelesaikan loading meskipun polling timeout
+      setProgress(100);
+      setSearchState("complete");
+    };
+    
+    // Tidak perlu polling khusus untuk bibliography lagi, 
+    // karena kita melanjutkan polling utama hingga semua data (sources, answer, bibliography) selesai
+    
+    const fetchResults = async () => {
+      // Simulate searching phase, tapi mulai polling sources lebih awal
+      setSearchState("searching");
+      
+      // Mulai initial polling untuk sources sebelum menyelesaikan animasi
+      let taskIdEarly: string | null = null;
+      let sourcesFound = false;
+      
+      // Promise untuk animasi UI
+      const uiAnimation = new Promise<void>(async (resolve) => {
+        for (let i = 0; i <= 30; i++) {
+          setProgress(i);
+          await new Promise((r) => setTimeout(r, 30)); // Dipercepat dari 50ms ke 30ms
+        }
+        resolve();
+      });
+      
+      // Promise untuk mendapatkan sources lewat early polling
+      const earlySourcesPolling = async () => {
+        try {
+          // Dapatkan task ID dulu
+          const initialResponse = await searchJournals(query, startYear, endYear, mode);
+          taskIdEarly = initialResponse.taskId || null;
+          
+          // Jika sudah dapat sources, langsung return
+          if (initialResponse.references && initialResponse.references.length > 0) {
+            console.log("Sources available immediately!");
+            sourcesFound = true;
+            return {
+              answer: initialResponse.answer || '',
+              references: initialResponse.references || [],
+              bibliography: Array.isArray(initialResponse.bibliography) ? initialResponse.bibliography : [],
+              taskId: initialResponse.taskId,
+              phase: initialResponse.phase as 'waiting' | 'sources' | 'answer' | 'completed',
+              answerPending: Boolean(initialResponse.answerPending)
+            };
+          }
+          
+          // Jika belum, mulai polling agresif
+          if (taskIdEarly) {
+            console.log("Starting super-aggressive early polling for sources");
+            let attempts = 0;
+            while (attempts < 25 && !sourcesFound) { // Lebih banyak percobaan (25 kali)
+              await new Promise(r => setTimeout(r, 50)); // Poll sangat cepat, setiap 50ms
+              const status = await checkSearchStatus(taskIdEarly);
+              attempts++;
+              
+              if (status.phase === 'sources' && status.sources && status.sources.length > 0) {
+                console.log(`Early sources found after ${attempts} attempts!`);
+                sourcesFound = true;
+                return {
+                  answer: '',  // Ensure answer is always a string, not null
+                  references: status.sources.map(normalizeSource),
+                  taskId: taskIdEarly,
+                  phase: 'sources' as 'waiting' | 'sources' | 'answer' | 'completed',
+                  answerPending: true
+                };
+              }
+              
+              if (status.phase === 'answer') {
+                console.log(`Answer ready in early polling`);
+                sourcesFound = true;
+                return {
+                  answer: status.answer || '',
+                  references: status.sources?.map(normalizeSource) || [],
+                  bibliography: [], // In answer phase, bibliography might be empty
+                  taskId: taskIdEarly,
+                  phase: 'answer',
+                  answerPending: false,
+                  bibliographyPending: true
+                };
+              }
+              
+              if (status.phase === 'completed') {
+                console.log(`Completed phase in early polling, including bibliography`);
+                sourcesFound = true;
+                return {
+                  answer: status.answer || '',
+                  references: status.sources?.map(normalizeSource) || [],
+                  bibliography: status.bibliography || [],
+                  taskId: taskIdEarly,
+                  phase: 'completed',
+                  answerPending: false,
+                  bibliographyPending: false
+                };
+              }
+            }
+          }
+          
+          return null; // Tidak berhasil mendapatkan sources dalam early polling
+        } catch (error) {
+          console.warn("Early polling error:", error);
+          return null;
+        }
+      };
+      
+      try {
+        // Tunggu animasi UI dan early polling selesai
+        const [_, earlyResult] = await Promise.all([uiAnimation, earlySourcesPolling()]);
+        
+        // Jika early polling berhasil, gunakan hasilnya
+        if (earlyResult) {
+          console.log("Using early polling result");
+          
+          // Pastikan tipe earlyResult sesuai dengan yang diharapkan
+          const typedResult = {
+            answer: earlyResult.answer || '',
+            references: earlyResult.references || [],
+            bibliography: Array.isArray(earlyResult.bibliography) ? earlyResult.bibliography : [],
+            taskId: earlyResult.taskId,
+            phase: earlyResult.phase as 'waiting' | 'sources' | 'answer' | 'completed',
+            answerPending: Boolean(earlyResult.answerPending),
+            bibliographyPending: Boolean(earlyResult.bibliographyPending)
+          };
+          
+          setResult(typedResult);
+          
+          // Periksa fase pencarian saat ini berdasarkan earlyResult
+          if (typedResult.phase === 'waiting') {
+            setSearchState("searching");
+            setJournalsFound(0);
+          } else if (typedResult.phase === 'sources') {
+            setSearchState("found");
+            setJournalsFound(typedResult.references.length);
+            setProgress(60);
+            
+            // Tunjukkan referensi dan mulai polling di background jika answer tertunda
+            if (typedResult.answerPending && typedResult.taskId) {
+              setSearchState("processing");
+              pollAnswerInBackground(typedResult.taskId);
+            } else {
+              setSearchState("complete");
+            }
+          } else if (typedResult.phase === 'answer') {
+            // Phase answer, answer ready but bibliography might not be
+            setSearchState("complete");
             setProgress(100);
-            break; // SSE selesai
+            
+            // Lanjutkan polling untuk mendapatkan bibliography
+            if (typedResult.bibliographyPending && typedResult.taskId) {
+              pollAnswerInBackground(typedResult.taskId);
+            }
+          } else if (typedResult.phase === 'completed') {
+            // Phase completed, everything ready including bibliography
+            setSearchState("complete");
+            setProgress(100);
+          } else {
+            // Fallback
+            setSearchState("complete");
+          }
+        } else {
+          // Jika early polling gagal, lakukan request normal
+          console.log("Early polling did not find sources, doing regular request");
+          const data = await searchJournals(query, startYear, endYear, mode);
+          
+          // Pastikan tipe data sesuai dengan yang diharapkan
+          const typedData = {
+            answer: data.answer || '',
+            references: data.references || [],
+            bibliography: Array.isArray(data.bibliography) ? data.bibliography : [],
+            taskId: data.taskId,
+            phase: data.phase as 'waiting' | 'sources' | 'answer' | 'completed',
+            answerPending: Boolean(data.answerPending),
+            bibliographyPending: Boolean(data.bibliographyPending)
+          };
+          
+          setResult(typedData);
+
+          // Periksa fase pencarian saat ini
+          if (typedData.phase === 'waiting') {
+            setSearchState("searching");
+            setJournalsFound(0);
+          } else if (typedData.phase === 'sources') {
+            setSearchState("found");
+            setJournalsFound(typedData.references.length);
+            setProgress(60);
+            
+            // Tunjukkan referensi dan mulai polling di background jika answer tertunda
+            if (typedData.answerPending && typedData.taskId) {
+              setSearchState("processing");
+              pollAnswerInBackground(typedData.taskId);
+            } else {
+              setSearchState("complete");
+            }
+          } else if (typedData.phase === 'answer') {
+            // Phase answer, answer ready but bibliography might not be
+            setSearchState("complete");
+            setProgress(100);
+            
+            // Lanjutkan polling untuk mendapatkan bibliography
+            if (typedData.bibliographyPending && typedData.taskId) {
+              pollAnswerInBackground(typedData.taskId);
+            }
+          } else if (typedData.phase === 'completed') {
+            // Phase completed, everything ready including bibliography
+            setSearchState("complete");
+            setProgress(100);
+          } else {
+            // Fallback
+            setSearchState("complete");
           }
         }
       } catch (error) {
-        console.error("SSE search error:", error);
-        setSearchState("complete");
-        setProgress(100);
+        console.error("Search error:", error);
+        setSearchState("complete"); // Tampilkan fallback result
       }
     };
 
-    runSseFlow();
-
-    return () => {
-      cancelled = true;
-    };
+    fetchResults();
   }, [query, startYear, endYear, mode]);
 
   // Tampilkan referensi segera saat sources tersedia, tapi jawaban masih loading
@@ -220,6 +430,7 @@ export default function SearchResults({
 
   const { answer, references, bibliography } = result;
   const isAnswerPending = result.answerPending || searchState !== "complete";
+  const isBibliographyPending = result.bibliographyPending;
 
   return (
     <div className="mt-8 space-y-6">
@@ -276,6 +487,38 @@ export default function SearchResults({
           )}
         </div>
       </div>
+
+      {/* Bibliography section - tampilkan sesuai status bibliographyPending */}
+      {!isBibliographyPending && bibliography && bibliography.length > 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <h2 className="text-xl font-semibold mb-4">Bibliografi</h2>
+          <div className="space-y-2 text-sm">
+            {bibliography.map((entry, index) => (
+              <div key={index} className="pl-8 -indent-8">{entry}</div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        isBibliographyPending && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              Bibliografi
+              <span className="text-blue-500 text-sm ml-2 font-normal animate-pulse">
+                (memproses...)
+              </span>
+            </h2>
+            <div className="p-4 rounded-md bg-gray-50 border border-gray-100 relative">
+              <p className="text-gray-500">Menyusun daftar pustaka lengkap berdasarkan sumber...</p>
+              <div className="flex items-center justify-center mt-3">
+                <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full animate-pulse" 
+                       style={{ width: '60%', animationDuration: '1.5s' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      )}
     </div>
   );
 }

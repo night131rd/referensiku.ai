@@ -203,7 +203,46 @@ export const signOutAction = async () => {
   return redirect("/sign-in");
 };
 
-// Search journals action
+///    MAIN SERVER ACTIONS
+
+// Fungsi untuk memulai pencarian dengan backend streaming
+export const startStreamingSearch = async (
+  query: string,
+  startYear: string,
+  endYear: string,
+  mode: string,
+): Promise<{ taskId: string }> => {
+  console.log(
+    `Starting streaming search for: ${query}, years: ${startYear}-${endYear}, mode: ${mode}`,
+  );
+
+  try {
+    // Import API client
+    const api = await import('@/lib/api');
+
+    // Format years as a single string
+    const yearString = `${startYear}-${endYear}`;
+    
+    // Start the search on the backend
+    const searchResponse = await api.startSearch(query, yearString, mode);
+    
+    // Check if we got a fallback response
+    if (searchResponse.fallback === true) {
+      console.log("Received fallback response from search API, using mock data");
+      throw new Error(searchResponse.error || "Search service unavailable");
+    }
+    
+    const taskId = searchResponse.task_id;
+    console.log(`Streaming search started with task ID: ${taskId}`);
+    
+    return { taskId };
+  } catch (error) {
+    console.error("Error starting streaming search:", error);
+    throw error;
+  }
+};
+
+// Fungsi legacy untuk backward compatibility
 export const searchJournals = async (
   query: string,
   startYear: string,
@@ -233,88 +272,201 @@ export const searchJournals = async (
     const taskId = searchResponse.task_id;
     console.log(`Search started with task ID: ${taskId}`);
     
-    // Poll for status until completed or error
-    let status;
+    // Phase-based polling (waiting -> sources -> answer -> completed)
+    let phase: 'waiting' | 'sources' | 'answer' | 'completed' = 'waiting';
     let retries = 0;
-    const maxRetries = 60; // Maximum number of polling attempts (30 * 3 seconds = 90 seconds)
-    
-    do {
-      // Wait a bit between status checks
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      status = await api.checkSearchStatus(taskId);
-      retries++;
-      
-      console.log(`Status check ${retries}: ${status.status} - ${status.message}`);
-      
-      // Check if status check returned a fallback response
-      if (status.fallback === true) {
-        console.log("Received fallback response from status API, using mock data");
-        throw new Error(status.error || "Search status check failed");
-      }
-      
-      // If we've been waiting too long, consider it failed
-      if (retries >= maxRetries) {
-        throw new Error("Search timed out after 90 seconds");
-      }
-      
-    } while (!status.completed);
-    
-    // Get the answer and references
-    const answerData = await api.getAnswer(taskId);
-    
-    // Check if answer retrieval returned a fallback response
-    if (answerData.fallback === true) {
-      console.log("Received fallback response from answer API, using mock data");
-      throw new Error(answerData.error || "Failed to retrieve answer");
-    }
-    
-    // Convert sources to the JournalReference format
-    const references: JournalReference[] = answerData.sources.map((source: any) => ({
-      title: source.title || "Unknown Title",
-      authors: source.author ? [source.author] : ["Unknown Author"],
-      year: source.year ? parseInt(source.year) : new Date().getFullYear(),
-      journal: (source.publisher || "Unknown Journal").toUpperCase(), // Convert journal name to uppercase
-      doi: source.doi || "",
-      url: source.url || "",
-      pdfUrl: source.pdfUrl || "",
-      abstract: source.teks || "",
-    }));
-
-    // Pastikan bibliography adalah array of strings
+    const maxRetries = 90; // ~90s
+    let collectedSources: JournalReference[] = [];
+    let answerMarkdown = '';
     let bibliography: string[] = [];
-    if (answerData.bibliography && Array.isArray(answerData.bibliography)) {
-      bibliography = answerData.bibliography
-        .filter(item => item && typeof item === 'string')
-        .map(item => item.toString());
+
+    // Helper to normalize a single raw source object from backend (handles varying field names)
+    const normalizeSource = (s: any): JournalReference => {
+      console.log('Normalizing source:', JSON.stringify(s, null, 2));
+      
+      // Ekstrak judul dengan berbagai kemungkinan field name
+      const title = s.title || s.paper_title || s.document_title || s.name || s.Title || 'Unknown Title';
+      
+      // Ekstrak authors dengan berbagai kemungkinan format
+      let authors: string[] = ['Unknown Author'];
+      if (s.authors && typeof s.authors === 'string') {
+        // Jika authors berupa string, split berdasarkan koma dan bersihkan
+        authors = s.authors.split(',')
+          .map((author: string) => author.trim())
+          .filter((author: string) => author.length > 0);
+      } else if (Array.isArray(s.authors) && s.authors.length > 0) {
+        authors = s.authors.filter((author: any) => author && typeof author === 'string');
+      } else if (s.author && typeof s.author === 'string') {
+        authors = [s.author];
+      } else if (s.creator && typeof s.creator === 'string') {
+        authors = [s.creator];
+      } else if (s.Authors && typeof s.Authors === 'string') {
+        authors = s.Authors.split(',')
+          .map((author: string) => author.trim())
+          .filter((author: string) => author.length > 0);
+      } else if (s.Authors && Array.isArray(s.Authors)) {
+        authors = s.Authors.filter((author: any) => author && typeof author === 'string');
+      } else if (s.Author && typeof s.Author === 'string') {
+        authors = [s.Author];
+      }
+      
+      // Pastikan minimal ada satu author yang valid
+      if (authors.length === 0 || (authors.length === 1 && authors[0].trim() === '')) {
+        authors = ['Unknown Author'];
+      }
+      
+      // Ekstrak tahun
+      const year = (() => {
+        const y = s.year || s.published_year || s.publication_year || s.date_year || s.Year || s.PublishedYear;
+        if (y) {
+          const yearNum = parseInt(String(y).slice(0, 4));
+          return isNaN(yearNum) ? new Date().getFullYear() : yearNum;
+        }
+        return new Date().getFullYear();
+      })();
+      
+      // Ekstrak journal/publisher
+      const journal = (s.publisher || s.journal || s.source || s.conference || s.Journal || s.Publisher || 'Unknown Journal').toString().toUpperCase();
+      
+      // Debug hasil normalisasi
+      console.log('Normalized result:', { title, authors, year, journal });
+      
+      return {
+        title,
+        authors,
+        year,
+        journal,
+        doi: s.doi || s.DOI || s.identifier || '',
+        url: s.url || s.link || s.href || '',
+        pdfUrl: s.pdfUrl || s.pdf_url || s.pdf || '',
+        abstract: s.abstract || s.teks || s.summary || s.description || '',
+      };
+    };
+
+    // Polling tingkat pertama: polling lebih cepat untuk mendapatkan hasil segera
+    const maxInitialRetries = 2 ; // ~2.5s untuk menunggu hasil awal (lebih cepat)
+
+    while (retries < maxInitialRetries) {
+      await new Promise(r => setTimeout(r, 500)); // Lebih cepat: 500ms setiap poll
+      const statusResp = await api.checkSearchStatus(taskId);
+      phase = statusResp.phase;
+      retries++;
+      console.log(`Phase check ${retries}: ${phase}`);
+
+      // Debug output untuk semua fase
+      if (phase === 'sources' || phase === 'answer' || phase === 'completed') {
+        console.log(`Phase ${phase} detected, sources count:`, statusResp.sources?.length || 0);
+        if (statusResp.sources?.[0]) {
+          console.log('Raw first source:', JSON.stringify(statusResp.sources[0], null, 2));
+          console.log('Available source fields:', Object.keys(statusResp.sources[0]));
+        }
+        // Debug bibliography jika tersedia
+        if (statusResp.bibliography && statusResp.bibliography.length > 0) {
+          console.log('Bibliography data:', statusResp.bibliography.slice(0, 2)); // Show first 2 entries
+        }
+      }
+
+      // Jika sources sudah ada, segera kembalikan untuk UI
+      if (phase === 'sources' && statusResp.sources && statusResp.sources.length > 0) {
+        collectedSources = statusResp.sources.map(normalizeSource);
+        console.log(`Returning early with ${collectedSources.length} sources, answer still pending`);
+        return {
+          answer: '',
+          references: collectedSources,
+          bibliography: [],
+          taskId,
+          phase: 'sources',
+          answerPending: true,
+          bibliographyPending: true, // Bibliography masih dalam proses
+        };
+      }
+
+      // Handle answer phase - answer ready but bibliography might not be complete
+      if (phase === 'answer' && statusResp.answer) {
+        answerMarkdown = statusResp.answer;
+        // In answer phase, bibliography might be empty according to the backend
+        bibliography = [];
+        if (statusResp.sources && statusResp.sources.length > 0) {
+          collectedSources = statusResp.sources.map(normalizeSource);
+        }
+        console.log(`Returning with answer, bibliography still pending`);
+        return {
+          answer: answerMarkdown,
+          references: collectedSources,
+          bibliography,
+          taskId,
+          phase: 'answer',
+          answerPending: false,
+          bibliographyPending: true, // Flag untuk bibliography masih pending
+        };
+      }
+      
+      // Handle completed phase - everything is ready (sources, answer, and bibliography)
+      if (phase === 'completed' && statusResp.answer) {
+        answerMarkdown = statusResp.answer;
+        bibliography = (statusResp.bibliography || []).filter((b: any) => typeof b === 'string');
+        if (statusResp.sources && statusResp.sources.length > 0) {
+          collectedSources = statusResp.sources.map(normalizeSource);
+        }
+        console.log(`Returning with complete data including bibliography`);
+        return {
+          answer: answerMarkdown,
+          references: collectedSources,
+          bibliography,
+          taskId,
+          phase: 'completed',
+          answerPending: false,
+          bibliographyPending: false, // Bibliography sudah selesai
+        };
+      }
     }
     
+    // Jika masih belum dapat sources setelah waktu awal
+    console.log('Sources not available in initial window, returning taskId for client polling');
     return {
-      answer: answerData.answer,
-      references: references,
-      bibliography: bibliography,
-      taskId: taskId, // Store task ID for potential future needs
+      answer: '',
+      references: [],
+      bibliography: [],
+      taskId,
+      phase: 'waiting',
+      answerPending: true,
+      bibliographyPending: true,
     };
   } catch (error) {
     console.error("Error searching journals:", error);
     
     // Fall back to the mock implementation if the backend fails
     console.log("Falling back to mock implementation");
-    33
+    
     // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
-    // Mock references
+    // Mock references (contoh statis agar UI tidak kosong)
     const mockReferences: JournalReference[] = [
-      
+      {
+        title: `Placeholder studi terkait \"${query}\"`,
+        authors: ["Anonim"],
+        year: new Date().getFullYear(),
+        journal: "MOCK JOURNAL",
+        doi: "",
+        url: "https://example.com",
+        pdfUrl: "",
+        abstract: "Data tidak tersedia karena layanan pencarian sedang bermasalah. Ini hanya contoh placeholder untuk menjaga tampilan UI tetap konsisten." 
+      }
     ];
 
-    // Generate an error log for user
-    const mockAnswer = `
-      <p> Pencarian ${query} mengalami error. Silakan coba lagi nanti.</p>
-    `;
+    // Gunakan markdown (bukan HTML) agar konsisten dengan parser formatAnswerText
+    const mockAnswer = [
+      `**Pencarian gagal diproses**`,
+      `Kueri: \"${query}\"`,
+      "Kemungkinan penyebab:",
+      "- Layanan backend sementara tidak dapat diakses",
+      "- Timeout saat memproses pencarian",
+      "- Gangguan jaringan sementara",
+      "\nSilakan coba lagi beberapa saat lagi. Jika masalah berlanjut, hubungi admin.",
+    ].join("\n\n");
 
-    // Create mock bibliography entries for fallback
+    // Bibliografi placeholder
     const mockBibliography: string[] = [
       "Tidak dapat menampilkan sumber karena terjadi kesalahan pada server. Silakan coba lagi nanti."
     ];
@@ -323,6 +475,9 @@ export const searchJournals = async (
       answer: mockAnswer,
       references: mockReferences,
       bibliography: mockBibliography,
+      phase: 'answer',
+      answerPending: false,
+      bibliographyPending: false, // Dalam mode error/mock, bibliography langsung dianggap selesai
     };
   }
 };

@@ -64,7 +64,7 @@ enabled = true
 # Port to use for Supabase Studio.
 port = 54323
 # External URL of the API server that frontend connects to.
-api_url = "msdocs-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmeg.indonesiacentral-01.azurewebsites.net"
+api_url = "s-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmemsdocg.indonesiacentral-01.azurewebsites.net"
 # OpenAI API Key to use for Supabase AI in the Supabase Studio.
 openai_api_key = "env(OPENAI_API_KEY)"
 

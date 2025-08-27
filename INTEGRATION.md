@@ -9,7 +9,7 @@ This document provides information about how the frontend and backend of referen
 The frontend connects to the backend using the `NEXT_PUBLIC_API_URL` environment variable defined in the `.env` file:
 
 ```
-NEXT_PUBLIC_API_URL=msdocs-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmeg.indonesiacentral-01.azurewebsites.net
+NEXT_PUBLIC_API_URL=
 ```
 
 Change this URL if your backend is hosted elsewhere.

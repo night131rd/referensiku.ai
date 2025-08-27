@@ -57,9 +57,9 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
     
     // Check if API_URL is empty or undefined in Vercel environment
     if (!apiUrl || apiUrl.trim() === '') {
-      // Hardcode the URL in production as a fallback
-      apiUrl = 'msdocs-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmeg.indonesiacentral-01.azurewebsites.net';
-      console.log('Empty API_URL, using hardcoded fallback:', apiUrl);
+      // Use a safe local default to avoid proxying to Next.js pages
+      apiUrl = 'http://127.0.0.1:8000';
+      console.log('Empty API_URL, using local default:', apiUrl);
     }
     
     // Remove trailing slashes from API_URL
@@ -97,8 +97,31 @@ async function handleRequest(req: NextRequest, { path }: { path: string[] }) {
       // Prevent caching in the fetch call itself to avoid stale data
       cache: 'no-store',
     });
+
+    // Detect SSE endpoint either by path or by Accept header/content-type
+    const acceptHeader = req.headers.get('accept') || '';
+    const contentType = response.headers.get('content-type') || '';
+    const isSsePath = pathSegment.includes('/search/stream');
+    const isSse = isSsePath || acceptHeader.includes('text/event-stream') || contentType.includes('text/event-stream');
+
+    if (isSse) {
+      // Pass-through streaming response for SSE
+      const sseHeaders = new Headers();
+      sseHeaders.set('Content-Type', 'text/event-stream');
+      sseHeaders.set('Cache-Control', 'no-cache');
+      sseHeaders.set('Connection', 'keep-alive');
+
+      // Preserve CORS if present from backend
+      const allowOrigin = response.headers.get('access-control-allow-origin');
+      if (allowOrigin) sseHeaders.set('Access-Control-Allow-Origin', allowOrigin);
+
+      return new Response(response.body, {
+        status: response.status,
+        headers: sseHeaders,
+      });
+    }
     
-    // Get the response data
+    // Get the response data (non-SSE)
     const data = await response.json();
     
     // Create the response object

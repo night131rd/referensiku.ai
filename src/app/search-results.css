@@ -6,14 +6,133 @@
   font-size: 16px;
 }
 
+/* Format untuk paragraf dengan text-justify */
+.search-results-content p {
+  text-align: justify;
+  margin-bottom: 1rem;
+  hyphens: auto;
+}
+
+/* Format untuk teks bold */
+.search-results-content strong {
+  font-weight: 600;
+  color: #000;
+}
+
+/* Format untuk jarak antar paragraf */
+.search-results-content p + p {
+  margin-top: 1rem;
+}
+
+/* Format untuk heading */
+.search-results-content h1, 
+.search-results-content h2, 
+.search-results-content h3, 
+.search-results-content h4 {
+  font-weight: 600;
+  color: #111;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+/* Format untuk list */
+.search-results-content ul, 
+.search-results-content ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.search-results-content li {
+  margin-bottom: 0.5rem;
+}
+
+/* Format untuk blockquote */
+.search-results-content blockquote {
+  border-left: 3px solid #ccc;
+  padding-left: 1rem;
+  font-style: italic;
+  color: #555;
+  margin: 1rem 0;
+}
+
+/* Format untuk code blocks */
+.search-results-content pre {
+  background-color: #f5f5f5;
+  padding: 0.75rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.search-results-content code {
+  font-family: Menlo, Monaco, "Courier New", monospace;
+  font-size: 0.9em;
+  padding: 0.2em 0.4em;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
+
+/* Format untuk links */
+.search-results-content a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.search-results-content a:hover {
+  text-decoration: underline;
+}
+
+/* Format untuk tables */
+.search-results-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.search-results-content th, 
+.search-results-content td {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.search-results-content th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
 /* Format sederhana untuk jaga keterbacaan */
 .search-results-content br {
   display: block;
-  margin: 10px 0;
+  margin: 4px 0;
   content: " ";
 }
 
-/* Format dasar untuk struktur */
-.search-results-content .whitespace-pre-wrap {
-  white-space: pre-wrap;
+/* Format untuk highlighting keyword */
+.search-results-content span.bg-yellow-100 {
+  background-color: rgba(254, 243, 199, 0.8);
+  border-radius: 0.125rem;
+  padding: 0 0.125rem;
+  margin: 0 -0.125rem;
+  transition: background-color 0.2s ease;
+}
+
+.search-results-content span.bg-yellow-100:hover {
+  background-color: rgba(253, 230, 138, 1);
+}
+
+/* Format khusus untuk abstrak referensi */
+.reference-abstract {
+  line-height: 1.6;
+  text-align: justify;
+  hyphens: auto;
+  font-style: italic;
+  overflow-wrap: break-word;
+}
+
+/* Format khusus untuk nama jurnal */
+.journal-name {
+  font-style: italic;
+  font-weight: 500;
+  color: #444;
 }

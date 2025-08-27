@@ -18,4 +18,7 @@ export interface SearchResult {
   references: JournalReference[];
   taskId?: string; // Task ID for tracking search with backend
   bibliography?: string[]; // Bibliography entries returned from the backend
+  phase?: 'waiting' | 'sources' | 'answer' | 'completed'; // Current phase of search process
+  answerPending?: boolean; // Whether the answer is still being generated
+  bibliographyPending?: boolean; // Whether the bibliography is still being generated
 }

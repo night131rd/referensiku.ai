@@ -32,7 +32,7 @@ export interface AnswerResponse {
 }
 
 // Ensure API_URL has the correct format with https:// prefix
-let baseApiUrl = process.env.NEXT_PUBLIC_API_URL || 'msdocs-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmeg.indonesiacentral-01.azurewebsites.net';
+let baseApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
 // Add https:// if it doesn't have a protocol
 if (!baseApiUrl.startsWith('http://') && !baseApiUrl.startsWith('https://')) {
@@ -107,55 +107,164 @@ export async function startSearch(query: string, year?: string, mode: string = '
 }
 
 /**
- * Check the status of a search task
+ * New interface for search status response
+ * Includes phase-based tracking for the search process as defined in the FastAPI backend
+ * - waiting: Initial state, no data yet
+ * - sources: Sources are available, answer is still being generated
+ * - answer: Answer is available, bibliography might still be processing
+ * - completed: Everything is ready (sources, answer, bibliography)
  */
-export async function checkSearchStatus(taskId: string): Promise<SearchStatusResponse> {
+export interface NewSearchStatusResponse {
+  phase: 'waiting' | 'sources' | 'answer' | 'completed';
+  answer: string | null;
+  sources: any[];
+  bibliography: string[];
+}
+
+/**
+ * Check the status of a search task
+ * This version supports the new phase-based status tracking
+ */
+export async function checkSearchStatus(taskId: string): Promise<NewSearchStatusResponse> {
+  const url = getProxyUrl(`/search/status/${taskId}`);
+  const res = await fetch(url, { cache: 'no-store' });
+
+  // Handle accepted status (sources not ready yet)
+  if (res.status === 202) {
+    // Check if we have a more detailed response
+    try {
+      const data = await res.json();
+      if (data.detail === "Sources not ready yet") {
+        return { phase: 'waiting', answer: null, sources: [], bibliography: [] };
+      }
+      
+      // Handle case where answer might be available but status code is 202
+      if (data.answer) {
+        return {
+          phase: 'answer',
+          answer: data.answer || '',
+          sources: data.sources || [],
+          bibliography: data.bibliography || [],
+        };
+      }
+    } catch (e) {
+      // If no valid JSON or parsing error, default to waiting
+      return { phase: 'waiting', answer: null, sources: [], bibliography: [] };
+    }
+    
+    return { phase: 'waiting', answer: null, sources: [], bibliography: [] };
+  }
+
+  if (!res.ok) {
+    throw new Error(`Status error: ${res.status}`);
+  }
+
+  const data = await res.json();
+
+  // Sources ready, answer not ready
+  if (data.phase === 'sources') {
+    return {
+      phase: 'sources',
+      answer: null,
+      sources: data.sources || [],
+      bibliography: [],
+    };
+  }
+
+  // Answer ready
+  if (data.phase === 'answer') {
+    return {
+      phase: 'answer',
+      answer: data.answer || '',
+      sources: data.sources || [],
+      bibliography: data.bibliography || [],
+    };
+  }
+  
+  // Completed (answer + bibliography ready)
+  if (data.phase === 'completed') {
+    return {
+      phase: 'completed',
+      answer: data.answer || '',
+      sources: data.sources || [],
+      bibliography: data.bibliography || [],
+    };
+  }
+
+  // Default case, return waiting phase
+  return { phase: 'waiting', answer: null, sources: [], bibliography: [] };
+}
+
+/**
+ * Stream search status updates from the backend
+ * This function uses Server-Sent Events to get real-time updates
+ */
+export async function* streamSearchStatus(taskId: string): AsyncGenerator<any, void, unknown> {
+  const url = getProxyUrl(`/search/stream/${taskId}`);
+  console.log(`Starting SSE stream for task: ${taskId}`);
+  
   try {
-    const url = getProxyUrl(`/search/status/${taskId}`);
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
+    });
 
     if (!response.ok) {
-      throw new Error(`Error checking search status: ${response.statusText}`);
+      throw new Error(`Stream error: ${response.status}`);
     }
 
-    const data = await response.json();
-    
-    // Check if we got a fallback error from the proxy
-    if (data.fallback === true && data.error) {
-      throw new Error(data.error);
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No reader available');
     }
-    
-    return data;
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('SSE stream completed');
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              yield data;
+            } catch (e) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   } catch (error) {
-    console.error(`Error checking status for task ${taskId}:`, error);
+    console.error('SSE stream error:', error);
     throw error;
   }
 }
 
 /**
- * Get the answer for a completed search
+ * Get the final answer for a completed search
+ * This may return a more polished answer compared to the initial response
  */
-export async function getAnswer(taskId: string): Promise<AnswerResponse> {
-  try {
-    const url = getProxyUrl(`/answer/${taskId}`);
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`Error getting answer: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    // Check if we got a fallback error from the proxy
-    if (data.fallback === true && data.error) {
-      throw new Error(data.error);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error(`Error getting answer for task ${taskId}:`, error);
-    throw error;
-  }
+export async function getFinalAnswer(taskId: string): Promise<AnswerResponse> {
+  const url = getProxyUrl(`/answer/${taskId}`);
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Answer error: ${res.status}`);
+  return res.json();
 }
 
 /**

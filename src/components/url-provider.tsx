@@ -14,8 +14,7 @@ export function UrlProvider({ children }: UrlProviderProps) {
     const baseUrl = window.location.origin;
     
     // Check if we're behind a proxy like ngrok by looking at the hostname
-    const isProxy = !baseUrl.includes('localhost') && !baseUrl.includes('msdocs-python-webapp-quickstart-jurnalgpt-cygwdjf5bhfgdmeg.indonesiacentral-01.azurewebsites.net');
-    
+    const isProxy = !baseUrl.includes('localhost') && !baseUrl.includes('')
     // Store the URL for use in the form
     setCurrentUrl(baseUrl);
     

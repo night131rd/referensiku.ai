@@ -1,7 +1,7 @@
 "use client";
 
 import { JournalReference } from "@/types/search";
-import { startStreamingSearch } from "@/app/actions";
+import { searchJournals } from "@/app/actions";
 import {
   ExternalLink,
   Download,
@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { marked } from "marked";
-import { streamSearchStatus, startSearch } from "@/lib/api";
+import { checkSearchStatus } from "@/lib/api";
 
 interface SearchResultsProps {
   query: string;
@@ -46,155 +46,255 @@ export default function SearchResults({
   
   // Helper untuk normalisasi sumber
   const normalizeSource = (s: any): JournalReference => {
-    console.log('Frontend normalizing source:', JSON.stringify(s, null, 2));
-    
-    // Ekstrak judul dengan berbagai kemungkinan field name
-    const title = s.title || s.paper_title || s.document_title || s.name || s.Title || 'Unknown Title';
-    
-    // Ekstrak authors dengan berbagai kemungkinan format
-    let authors: string[] = ['Unknown Author'];
-    if (s.authors && typeof s.authors === 'string') {
-      // Jika authors berupa string, split berdasarkan koma dan bersihkan
-      authors = s.authors.split(',')
-        .map((author: string) => author.trim())
-        .filter((author: string) => author.length > 0);
-    } else if (Array.isArray(s.authors) && s.authors.length > 0) {
-      authors = s.authors.filter((author: string) => author && typeof author === 'string');
-    } else if (s.author && typeof s.author === 'string') {
-      authors = [s.author];
-    } else if (s.creator && typeof s.creator === 'string') {
-      authors = [s.creator];
-    } else if (s.Authors && typeof s.Authors === 'string') {
-      authors = s.Authors.split(',')
-        .map((author: string) => author.trim())
-        .filter((author: string) => author.length > 0);
-    } else if (s.Authors && Array.isArray(s.Authors)) {
-      authors = s.Authors.filter((author: string) => author && typeof author === 'string');
-    } else if (s.Author && typeof s.Author === 'string') {
-      authors = [s.Author];
-    }
-    
-    // Pastikan minimal ada satu author yang valid
-    if (authors.length === 0 || (authors.length === 1 && authors[0].trim() === '')) {
-      authors = ['Unknown Author'];
-    }
-    
-    // Ekstrak tahun
-    const year = (() => {
-      const y = s.year || s.published_year || s.publication_year || s.date_year || s.Year || s.PublishedYear;
-      if (y) {
-        const yearNum = parseInt(String(y).slice(0, 4));
-        return isNaN(yearNum) ? new Date().getFullYear() : yearNum;
-      }
-      return new Date().getFullYear();
-    })();
-    
-    // Ekstrak journal/publisher
-    const journal = (s.publisher || s.journal || s.source || s.conference || s.Journal || s.Publisher || 'Unknown Journal').toString().toUpperCase();
-    
-    console.log('Frontend normalized result:', { title, authors, year, journal });
-    
     return {
-      title,
-      authors,
-      year,
-      journal,
-      doi: s.doi || s.DOI || s.identifier || '',
-      url: s.url || s.link || s.href || '',
-      pdfUrl: s.pdfUrl || s.pdf_url || s.pdf || '',
-      abstract: s.abstract || s.teks || s.summary || s.description || '',
+      title: s.title || s.paper_title || 'Unknown Title',
+      authors: Array.isArray(s.authors) ? s.authors : (s.author ? [s.author] : ['Unknown Author']),
+      year: s.year ? parseInt(String(s.year)) : new Date().getFullYear(),
+      journal: (s.publisher || s.journal || 'Unknown Journal').toUpperCase(),
+      doi: s.doi || '',
+      url: s.url || '',
+      pdfUrl: s.pdfUrl || '',
+      abstract: s.teks || s.abstract || '',
     };
   };
   
   useEffect(() => {
-    let cancelled = false;
+    // Polling untuk answer di background jika masih dalam proses
+    const pollAnswerInBackground = async (taskId: string) => {
+      let retries = 0;
+      const maxRetries = 60; // 60 detik max
+      
+      // Polling interval yang meningkat setelah beberapa percobaan
+      const getDelay = (retry: number) => {
+        if (retry < 10) return 500; // 0.5 detik untuk 10 percobaan pertama
+        if (retry < 20) return 1000; // 1 detik untuk percobaan 11-20
+        return 2000; // 2 detik untuk percobaan selanjutnya
+      };
 
-    const runSseFlow = async () => {
-      try {
-        setSearchState("searching");
-        setProgress(0);
-        setJournalsFound(0);
-
-        // Mulai pencarian untuk mendapatkan taskId
-        const yearString = `${startYear}-${endYear}`;
-        const startResp = await startSearch(query, yearString, mode);
-        const taskId = startResp.task_id;
-        if (!taskId) {
-          throw new Error("No task_id returned by backend");
-        }
-
-        if (cancelled) return;
-        setResult({
-          answer: '',
-          references: [],
-          bibliography: [],
-          taskId,
-          phase: 'waiting',
-          answerPending: true,
-        });
-
-        // Buka SSE stream dan proses event
-        for await (const event of streamSearchStatus(taskId)) {
-          if (cancelled) break;
-          const phase = event.phase as 'sources' | 'answer' | 'completed';
-
-          if (phase === 'sources' && Array.isArray(event.sources)) {
-            const refs = event.sources.map(normalizeSource);
+      while (retries < maxRetries) {
+        try {
+          const statusResp = await checkSearchStatus(taskId);
+          console.log(`Polling check ${retries}: phase=${statusResp.phase}, sources=${statusResp.sources?.length || 0}`);
+          
+          // Jika phase berubah ke answer atau completed, dapatkan answer lengkap
+          if ((statusResp.phase === 'answer' || statusResp.phase === 'completed') && statusResp.answer) {
+            console.log(`${statusResp.phase} ready, updating UI`);
+            // Perbarui result dengan jawaban lengkap
             setResult(prev => ({
-              ...(prev || { answer: '', references: [] }),
-              references: refs,
-              taskId,
-              phase: 'sources',
-              answerPending: true,
-            }));
-            setJournalsFound(refs.length);
-            setSearchState("found");
-            setProgress(60);
-          }
-
-          if (phase === 'answer') {
-            const refs = Array.isArray(event.sources) ? event.sources.map(normalizeSource) : (result?.references || []);
-            setResult(prev => ({
-              ...(prev || { answer: '' , references: []}),
-              references: refs,
-              answer: event.answer || '',
-              taskId,
-              phase: 'answer',
-              answerPending: false,
+              ...prev!,
+              answer: statusResp.answer || '',
+              bibliography: (statusResp.bibliography || []).filter((b: any) => typeof b === 'string'),
+              phase: statusResp.phase,
+              answerPending: false
             }));
             setSearchState("complete");
-            setProgress(90);
+            break;
           }
-
-          if (phase === 'completed') {
-            const refs = Array.isArray(event.sources) ? event.sources.map(normalizeSource) : (result?.references || []);
-            const bib = Array.isArray(event.bibliography) ? event.bibliography : [];
-            setResult(prev => ({
-              ...(prev || { answer: '' , references: []}),
-              references: refs,
-              answer: event.answer || (prev?.answer || ''),
-              bibliography: bib,
-              taskId,
-              phase: 'completed',
-              answerPending: false,
-            }));
+          
+          // Jika sources bertambah, update referensi
+          if (statusResp.phase === 'sources' && statusResp.sources && statusResp.sources.length > 0) {
+            console.log(`Updating sources: ${statusResp.sources.length} items`);
+            setResult(prev => {
+              // Hanya update sources jika jumlahnya bertambah
+              if (!prev || statusResp.sources.length > prev.references.length) {
+                return {
+                  ...prev!,
+                  references: statusResp.sources.map(normalizeSource),
+                };
+              }
+              return prev;
+            });
+          }
+          
+          // Update progress animation
+          setProgress(60 + Math.min(39, retries));
+        } catch (error) {
+          console.warn("Answer polling error:", error);
+        }
+        
+        retries++;
+        await new Promise(r => setTimeout(r, getDelay(retries)));
+      }
+      
+      // Pastikan UI menyelesaikan loading meskipun polling timeout
+      setProgress(100);
+      setSearchState("complete");
+    };
+    
+    const fetchResults = async () => {
+      // Simulate searching phase, tapi mulai polling sources lebih awal
+      setSearchState("searching");
+      
+      // Mulai initial polling untuk sources sebelum menyelesaikan animasi
+      let taskIdEarly: string | null = null;
+      let sourcesFound = false;
+      
+      // Promise untuk animasi UI
+      const uiAnimation = new Promise<void>(async (resolve) => {
+        for (let i = 0; i <= 30; i++) {
+          setProgress(i);
+          await new Promise((r) => setTimeout(r, 30)); // Dipercepat dari 50ms ke 30ms
+        }
+        resolve();
+      });
+      
+      // Promise untuk mendapatkan sources lewat early polling
+      const earlySourcesPolling = async () => {
+        try {
+          // Dapatkan task ID dulu
+          const initialResponse = await searchJournals(query, startYear, endYear, mode);
+          taskIdEarly = initialResponse.taskId || null;
+          
+          // Jika sudah dapat sources, langsung return
+          if (initialResponse.references && initialResponse.references.length > 0) {
+            console.log("Sources available immediately!");
+            sourcesFound = true;
+            return {
+              answer: initialResponse.answer || '',
+              references: initialResponse.references || [],
+              bibliography: Array.isArray(initialResponse.bibliography) ? initialResponse.bibliography : [],
+              taskId: initialResponse.taskId,
+              phase: initialResponse.phase as 'waiting' | 'sources' | 'answer' | 'completed',
+              answerPending: Boolean(initialResponse.answerPending)
+            };
+          }
+          
+          // Jika belum, mulai polling agresif
+          if (taskIdEarly) {
+            console.log("Starting aggressive early polling for sources");
+            let attempts = 0;
+            while (attempts < 15 && !sourcesFound) { // Lebih banyak percobaan
+              await new Promise(r => setTimeout(r, 100)); // Poll lebih cepat, setiap 100ms
+              const status = await checkSearchStatus(taskIdEarly);
+              attempts++;
+              
+              if (status.phase === 'sources' && status.sources && status.sources.length > 0) {
+                console.log(`Early sources found after ${attempts} attempts!`);
+                sourcesFound = true;
+                return {
+                  answer: '',  // Ensure answer is always a string, not null
+                  references: status.sources.map(normalizeSource),
+                  taskId: taskIdEarly,
+                  phase: 'sources' as 'waiting' | 'sources' | 'answer' | 'completed',
+                  answerPending: true
+                };
+              }
+              
+              if (status.phase === 'answer' || status.phase === 'completed') {
+                console.log(`${status.phase} ready in early polling`);
+                sourcesFound = true;
+                return {
+                  answer: status.answer || '',
+                  references: status.sources?.map(normalizeSource) || [],
+                  bibliography: status.bibliography || [],
+                  taskId: taskIdEarly,
+                  phase: status.phase as 'waiting' | 'sources' | 'answer' | 'completed',
+                  answerPending: false
+                };
+              }
+            }
+          }
+          
+          return null; // Tidak berhasil mendapatkan sources dalam early polling
+        } catch (error) {
+          console.warn("Early polling error:", error);
+          return null;
+        }
+      };
+      
+      try {
+        // Tunggu animasi UI dan early polling selesai
+        const [_, earlyResult] = await Promise.all([uiAnimation, earlySourcesPolling()]);
+        
+        // Jika early polling berhasil, gunakan hasilnya
+        if (earlyResult) {
+          console.log("Using early polling result");
+          
+          // Pastikan tipe earlyResult sesuai dengan yang diharapkan
+          const typedResult = {
+            answer: earlyResult.answer || '',
+            references: earlyResult.references || [],
+            bibliography: Array.isArray(earlyResult.bibliography) ? earlyResult.bibliography : [],
+            taskId: earlyResult.taskId,
+            phase: earlyResult.phase as 'waiting' | 'sources' | 'answer' | 'completed',
+            answerPending: Boolean(earlyResult.answerPending)
+          };
+          
+          setResult(typedResult);
+          
+          // Periksa fase pencarian saat ini berdasarkan earlyResult
+          if (typedResult.phase === 'waiting') {
+            setSearchState("searching");
+            setJournalsFound(0);
+          } else if (typedResult.phase === 'sources') {
+            setSearchState("found");
+            setJournalsFound(typedResult.references.length);
+            setProgress(60);
+            
+            // Tunjukkan referensi dan mulai polling di background jika answer tertunda
+            if (typedResult.answerPending && typedResult.taskId) {
+              setSearchState("processing");
+              pollAnswerInBackground(typedResult.taskId);
+            } else {
+              setSearchState("complete");
+            }
+          } else if (typedResult.phase === 'answer' || typedResult.phase === 'completed') {
+            // Phase answer atau completed, sudah selesai
             setSearchState("complete");
             setProgress(100);
-            break; // SSE selesai
+          } else {
+            // Fallback
+            setSearchState("complete");
+          }
+        } else {
+          // Jika early polling gagal, lakukan request normal
+          console.log("Early polling did not find sources, doing regular request");
+          const data = await searchJournals(query, startYear, endYear, mode);
+          
+          // Pastikan tipe data sesuai dengan yang diharapkan
+          const typedData = {
+            answer: data.answer || '',
+            references: data.references || [],
+            bibliography: Array.isArray(data.bibliography) ? data.bibliography : [],
+            taskId: data.taskId,
+            phase: data.phase as 'waiting' | 'sources' | 'answer' | 'completed',
+            answerPending: Boolean(data.answerPending)
+          };
+          
+          setResult(typedData);
+
+          // Periksa fase pencarian saat ini
+          if (typedData.phase === 'waiting') {
+            setSearchState("searching");
+            setJournalsFound(0);
+          } else if (typedData.phase === 'sources') {
+            setSearchState("found");
+            setJournalsFound(typedData.references.length);
+            setProgress(60);
+            
+            // Tunjukkan referensi dan mulai polling di background jika answer tertunda
+            if (typedData.answerPending && typedData.taskId) {
+              setSearchState("processing");
+              pollAnswerInBackground(typedData.taskId);
+            } else {
+              setSearchState("complete");
+            }
+          } else if (typedData.phase === 'answer' || typedData.phase === 'completed') {
+            // Phase answer atau completed, sudah selesai
+            setSearchState("complete");
+            setProgress(100);
+          } else {
+            // Fallback
+            setSearchState("complete");
           }
         }
       } catch (error) {
-        console.error("SSE search error:", error);
-        setSearchState("complete");
-        setProgress(100);
+        console.error("Search error:", error);
+        setSearchState("complete"); // Tampilkan fallback result
       }
     };
 
-    runSseFlow();
-
-    return () => {
-      cancelled = true;
-    };
+    fetchResults();
   }, [query, startYear, endYear, mode]);
 
   // Tampilkan referensi segera saat sources tersedia, tapi jawaban masih loading
@@ -237,12 +337,6 @@ export default function SearchResults({
         {!answer && isAnswerPending && (
           <div className="p-4 rounded-md bg-gray-50 border border-gray-100">
             <p className="text-gray-500">Menghasilkan jawaban berdasarkan sumber-sumber yang ditemukan...</p>
-            <div className="flex items-center justify-center mt-3">
-              <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-violet-500 rounded-full animate-pulse" 
-                     style={{ width: '80%', animationDuration: '2s' }}></div>
-              </div>
-            </div>
           </div>
         )}
         
@@ -276,6 +370,18 @@ export default function SearchResults({
           )}
         </div>
       </div>
+
+      {/* Bibliography section - hanya tampil jika answer sudah selesai */}
+      {!isAnswerPending && bibliography && bibliography.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+          <h2 className="text-xl font-semibold mb-4">Bibliografi</h2>
+          <div className="space-y-2 text-sm">
+            {bibliography.map((entry, index) => (
+              <div key={index} className="pl-8 -indent-8">{entry}</div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -498,8 +604,8 @@ function Reference({
     return matchingEntry || `${safeReference.authors.join(', ')}. (${safeReference.year}). ${safeReference.title}. ${safeReference.journal}.`;
   };
   
-  // Get bibliography entry for this reference, but only if bibliography is available
-  const bibliographyEntry = taskId ? getBibliographyEntry() : `${safeReference.authors.join(', ')}. (${safeReference.year}). ${safeReference.title}. ${safeReference.journal}.`;
+  // Get bibliography entry for this reference
+  const bibliographyEntry = getBibliographyEntry();
   
   // Toggle bibliography visibility
   const toggleBibliography = () => {
