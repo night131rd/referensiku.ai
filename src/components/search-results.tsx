@@ -108,12 +108,22 @@ export default function SearchResults({
   
   useEffect(() => {
     let cancelled = false;
+    let progressInterval: NodeJS.Timeout | null = null;
 
     const runSseFlow = async () => {
       try {
         setSearchState("searching");
         setProgress(0);
         setJournalsFound(0);
+
+        // Progress simulasi untuk fase awal pencarian
+        let searchingProgress = 0;
+        progressInterval = setInterval(() => {
+          if (searchingProgress < 30) {
+            searchingProgress += 1;
+            setProgress(searchingProgress);
+          }
+        }, 300);
 
         // Mulai pencarian untuk mendapatkan taskId
         const yearString = `${startYear}-${endYear}`;
@@ -123,6 +133,9 @@ export default function SearchResults({
           throw new Error("No task_id returned by backend");
         }
 
+        // Cek apakah ada persentase awal dari backend
+        const initialPercentage = startResp.percentage !== undefined ? Number(startResp.percentage) : null;
+        
         if (cancelled) return;
         setResult({
           answer: '',
@@ -132,13 +145,44 @@ export default function SearchResults({
           phase: 'waiting',
           answerPending: true,
         });
+        
+        // Clear progress interval yang lama
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+        
+        // Gunakan persentase dari backend jika tersedia atau set ke nilai default
+        if (initialPercentage !== null) {
+          setProgress(initialPercentage);
+        } else {
+          setProgress(35); // Fallback jika backend tidak mengirim persentase awal
+          
+          // Hanya mulai interval simulasi jika backend tidak mengirim persentase
+          let sourcesProgress = 35;
+          progressInterval = setInterval(() => {
+            if (sourcesProgress < 55) {
+              sourcesProgress += 1;
+              setProgress(sourcesProgress);
+            }
+          }, 500);
+        }
 
         // Buka SSE stream dan proses event
         for await (const event of streamSearchStatus(taskId)) {
           if (cancelled) break;
           const phase = event.phase as 'sources' | 'answer' | 'completed';
 
+          // Ambil persentase progress dari backend jika ada
+          const backendPercentage = event.percentage !== undefined && event.percentage !== null ? Number(event.percentage) : null;
+          
           if (phase === 'sources' && Array.isArray(event.sources)) {
+            // Clear progress interval saat sumber ditemukan
+            if (progressInterval) {
+              clearInterval(progressInterval);
+              progressInterval = null;
+            }
+            
             const refs = event.sources.map(normalizeSource);
             setResult(prev => ({
               ...(prev || { answer: '', references: [] }),
@@ -149,10 +193,33 @@ export default function SearchResults({
             }));
             setJournalsFound(refs.length);
             setSearchState("found");
-            setProgress(60);
+            
+            // Gunakan persentase dari backend jika tersedia
+            if (backendPercentage !== null) {
+              setProgress(backendPercentage);
+            } else {
+              setProgress(60); // Fallback jika backend tidak mengirim persentase
+            }
+            
+            // Hanya mulai interval simulasi jika backend tidak mengirim persentase
+            if (backendPercentage === null) {
+              let processingProgress = 60;
+              progressInterval = setInterval(() => {
+                if (processingProgress < 85) {
+                  processingProgress += 1;
+                  setProgress(processingProgress);
+                }
+              }, 800);
+            }
           }
 
           if (phase === 'answer') {
+            // Clear progress interval saat jawaban siap
+            if (progressInterval) {
+              clearInterval(progressInterval);
+              progressInterval = null;
+            }
+            
             const refs = Array.isArray(event.sources) ? event.sources.map(normalizeSource) : (result?.references || []);
             setResult(prev => ({
               ...(prev || { answer: '' , references: []}),
@@ -162,11 +229,34 @@ export default function SearchResults({
               phase: 'answer',
               answerPending: false,
             }));
-            setSearchState("complete");
-            setProgress(90);
+            setSearchState("processing");
+            
+            // Gunakan persentase dari backend jika tersedia
+            if (backendPercentage !== null) {
+              setProgress(backendPercentage);
+            } else {
+              setProgress(90); // Fallback jika backend tidak mengirim persentase
+            }
+            
+            // Hanya mulai interval simulasi jika backend tidak mengirim persentase
+            if (backendPercentage === null) {
+              let finalizingProgress = 90;
+              progressInterval = setInterval(() => {
+                if (finalizingProgress < 98) {
+                  finalizingProgress += 1;
+                  setProgress(finalizingProgress);
+                }
+              }, 500);
+            }
           }
 
           if (phase === 'completed') {
+            // Clear progress interval saat selesai
+            if (progressInterval) {
+              clearInterval(progressInterval);
+              progressInterval = null;
+            }
+            
             const refs = Array.isArray(event.sources) ? event.sources.map(normalizeSource) : (result?.references || []);
             const bib = Array.isArray(event.bibliography) ? event.bibliography : [];
             setResult(prev => ({
@@ -179,14 +269,43 @@ export default function SearchResults({
               answerPending: false,
             }));
             setSearchState("complete");
-            setProgress(100);
+            setProgress(100); // Selalu set ke 100% ketika completed
             break; // SSE selesai
+          }
+          
+          // Update progress jika ada perubahan persentase dari backend (untuk status lainnya)
+          if (backendPercentage !== null && phase !== 'sources' && phase !== 'answer' && phase !== 'completed') {
+            setProgress(backendPercentage);
           }
         }
       } catch (error) {
         console.error("SSE search error:", error);
-        setSearchState("complete");
-        setProgress(100);
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+        
+        // Jika sudah memiliki beberapa hasil, tetap tampilkan dengan pesan error
+        if (result && result.references && result.references.length > 0) {
+          setResult(prev => ({
+            ...(prev || { answer: '', references: [] }),
+            answer: prev?.answer || 'Maaf, terjadi kesalahan saat mengambil jawaban lengkap. Namun beberapa referensi telah ditemukan.',
+            answerPending: false,
+          }));
+          setSearchState("complete");
+          setProgress(100);
+        } else {
+          // Tampilkan pesan error jika tidak ada hasil sama sekali
+          setResult({
+            answer: 'Maaf, terjadi kesalahan saat menghubungi backend. Silakan coba lagi dalam beberapa saat.',
+            references: [],
+            phase: 'completed',
+            answerPending: false,
+            taskId: '',
+          });
+          setSearchState("complete");
+          setProgress(100);
+        }
       }
     };
 
@@ -194,6 +313,10 @@ export default function SearchResults({
 
     return () => {
       cancelled = true;
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
     };
   }, [query, startYear, endYear, mode]);
 
@@ -235,12 +358,21 @@ export default function SearchResults({
         </h2>
         
         {!answer && isAnswerPending && (
-          <div className="p-4 rounded-md bg-gray-50 border border-gray-100">
-            <p className="text-gray-500">Menghasilkan jawaban berdasarkan sumber-sumber yang ditemukan...</p>
-            <div className="flex items-center justify-center mt-3">
-              <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-violet-500 rounded-full animate-pulse" 
-                     style={{ width: '80%', animationDuration: '2s' }}></div>
+          <div className="p-6 rounded-md bg-gray-50 border border-gray-100 relative">
+            <div className="flex flex-col items-center">
+              {/* Animated loading spinner - simple blue circle */}
+              <div className="relative h-16 w-16 mb-4">
+                {/* Single spinning circle */}
+                <div className="absolute inset-0 rounded-full border-4 border-t-blue-600 border-b-blue-200 border-l-blue-200 border-r-blue-200 animate-spin" 
+                     style={{ animationDuration: '1.5s' }}></div>
+              </div>
+              
+              <p className="text-gray-600 font-medium text-center">Menghasilkan jawaban berdasarkan sumber-sumber yang ditemukan...</p>
+              
+              <div className="mt-4 flex space-x-2 items-center">
+                <span className="inline-block h-2 w-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0ms', animationDuration: '1s' }}></span>
+                <span className="inline-block h-2 w-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '300ms', animationDuration: '1s' }}></span>
+                <span className="inline-block h-2 w-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '600ms', animationDuration: '1s' }}></span>
               </div>
             </div>
           </div>
@@ -292,17 +424,79 @@ function SearchProgress({
   return (
     <div className="mt-8 p-6 bg-white rounded-lg shadow-sm border border-gray-100">
       <div className="flex flex-col items-center mb-6">
-        <h2 className="text-lg font-medium text-center mb-2">Menganalisis sumber akademis...</h2>
+        <h2 className="text-lg font-medium text-center mb-2">
+          {progress < 25 && "Mencari sumber akademis..."}
+          {progress >= 25 && progress < 50 && "Mengumpulkan sumber-sumber relevan..."}
+          {progress >= 50 && progress < 75 && "Menganalisis konten akademis..."}
+          {progress >= 75 && progress < 95 && "Menyusun jawaban..."}
+          {progress >= 95 && progress < 100 && "Finalisasi hasil..."}
+          {progress === 100 && "Pencarian selesai"}
+        </h2>
         <div className="flex items-center justify-center gap-2 mb-1">
           <span className="font-semibold text-violet-600 text-xl">{journalsFound}</span>
           <span className="text-gray-600">jurnal ditemukan</span>
         </div>
-        <div className="text-sm font-medium text-gray-500 mb-2">{progress}% selesai</div>
+        <div className="flex flex-col items-center">
+          <div className="text-sm font-medium text-gray-700 mb-1">{progress}% selesai</div>
+          <div className="w-16 h-16 mb-2 relative">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              {/* Lingkaran background */}
+              <circle 
+                cx="50" cy="50" r="45" 
+                fill="none" 
+                stroke="#e4e4e7" 
+                strokeWidth="8"
+              />
+              {/* Lingkaran progress */}
+              <circle 
+                cx="50" cy="50" r="45" 
+                fill="none" 
+                stroke={
+                  progress < 50 ? "#3b82f6" : 
+                  progress < 75 ? "#8b5cf6" : 
+                  progress < 95 ? "#6366f1" : 
+                  "#10b981"
+                }
+                strokeWidth="8"
+                strokeDasharray="283"
+                strokeDashoffset={283 - (283 * progress / 100)}
+                strokeLinecap="round"
+                transform="rotate(-90 50 50)"
+              />
+              <text 
+                x="50" y="55" 
+                textAnchor="middle" 
+                dominantBaseline="middle" 
+                fontSize="20"
+                fontWeight="bold"
+                fill="#4f46e5"
+              >
+                {Math.round(progress)}%
+              </text>
+            </svg>
+          </div>
+        </div>
+        
+        {progress > 0 && progress < 100 && (
+          <p className="text-xs text-gray-500 mt-1 max-w-md text-center">
+            {progress < 25 && "Menjalankan algoritma pencarian di database akademis dan mengindeks publikasi ilmiah yang relevan..."}
+            {progress >= 25 && progress < 50 && "Menemukan dan mengevaluasi relevansi sumber-sumber akademis berdasarkan kueri pencarian..."}
+            {progress >= 50 && progress < 75 && "Mengekstrak dan menganalisis data dari jurnal ilmiah untuk menyusun jawaban komprehensif..."}
+            {progress >= 75 && progress < 95 && "Menyintesis informasi dan membangun jawaban berdasarkan sumber-sumber terpercaya..."}
+            {progress >= 95 && progress < 100 && "Finalisasi dan memverifikasi kualitas jawaban dan referensi yang digunakan..."}
+          </p>
+        )}
       </div>
 
-      <div className="relative h-2 bg-violet-100 rounded-full overflow-hidden">
+      <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
         <div
-          className="absolute top-0 left-0 h-full bg-violet-600 transition-all duration-300 ease-in-out"
+          className={cn(
+            "absolute top-0 left-0 h-full transition-all duration-300 ease-in-out",
+            progress < 50 ? "bg-blue-600" : 
+            progress < 75 ? "bg-violet-600" : 
+            progress < 95 ? "bg-indigo-600" : 
+            "bg-emerald-600"
+          )}
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -396,7 +590,11 @@ function SearchProgress({
             <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
               <Search className="h-6 w-6 text-blue-600 animate-bounce" />
             </div>
-            <p className="text-sm text-gray-600 font-medium">Mencari jurnal ilmiah...</p>
+            <p className="text-sm text-gray-600 font-medium">
+              {progress < 15 && "Menginisialisasi pencarian akademis..."}
+              {progress >= 15 && progress < 30 && "Mencari jurnal ilmiah..."}
+              {progress >= 30 && progress < 40 && "Menjelajahi database akademis..."}
+            </p>
           </div>
         )}
         
@@ -405,7 +603,11 @@ function SearchProgress({
             <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
               <Search className="h-6 w-6 text-blue-600 animate-bounce" />
             </div>
-            <p className="text-sm text-gray-600 font-medium">Mengumpulkan sumber akademis...</p>
+            <p className="text-sm text-gray-600 font-medium">
+              {progress < 65 && "Mengumpulkan sumber akademis..."}
+              {progress >= 65 && progress < 75 && "Mengevaluasi relevansi jurnal..."}
+              {progress >= 75 && "Memproses teks akademis..."}
+            </p>
           </div>
         )}
         
@@ -414,7 +616,11 @@ function SearchProgress({
             <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center mb-2">
               <Brain className="h-6 w-6 text-blue-600 animate-bounce" />
             </div>
-            <p className="text-sm text-gray-600 font-medium">Menganalisis konten...</p>
+            <p className="text-sm text-gray-600 font-medium">
+              {progress < 92 && "Menganalisis konten dari sumber ilmiah..."}
+              {progress >= 92 && progress < 98 && "Menyempurnakan hasil akhir..."}
+              {progress >= 98 && "Hampir selesai..."}
+            </p>
           </div>
         )}
       </div>

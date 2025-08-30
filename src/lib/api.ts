@@ -9,6 +9,7 @@ export interface SearchResponse {
   task_id: string;
   status: string;
   message: string;
+  percentage?: number;
   fallback?: boolean;
   error?: string;
 }
@@ -17,6 +18,7 @@ export interface SearchStatusResponse {
   status: string;
   message: string;
   completed: boolean;
+  percentage?: number;
   answer?: string;
   sources?: any[];
   fallback?: boolean;
@@ -124,9 +126,11 @@ export interface NewSearchStatusResponse {
 /**
  * Check the status of a search task
  * This version supports the new phase-based status tracking
+ * Menggunakan endpoint /search/stream yang konsisten
  */
 export async function checkSearchStatus(taskId: string): Promise<NewSearchStatusResponse> {
-  const url = getProxyUrl(`/search/status/${taskId}`);
+  // Gunakan endpoint /search/stream yang sesuai dengan implementasi backend
+  const url = getProxyUrl(`/search/stream/${taskId}`);
   const res = await fetch(url, { cache: 'no-store' });
 
   // Handle accepted status (sources not ready yet)
@@ -197,21 +201,26 @@ export async function checkSearchStatus(taskId: string): Promise<NewSearchStatus
 
 /**
  * Stream search status updates from the backend
- * This function uses Server-Sent Events to get real-time updates
+ * This function uses Server-Sent Events to get real-time updates from the /search/stream endpoint
  */
 export async function* streamSearchStatus(taskId: string): AsyncGenerator<any, void, unknown> {
-  const url = getProxyUrl(`/search/stream/${taskId}`);
+  // Gunakan endpoint /search/stream yang konsisten dengan backend
+  const streamUrl = `/api/proxy/search/stream/${taskId}`;
   console.log(`Starting SSE stream for task: ${taskId}`);
   
   try {
-    const response = await fetch(url, {
+    console.log(`Fetching stream from: ${streamUrl}`);
+    const response = await fetch(streamUrl, {
       headers: {
         'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache',
       },
+      // Make sure we don't cache this request
+      cache: 'no-store',
     });
 
     if (!response.ok) {
+      console.error(`Stream error: ${response.status} ${response.statusText}`);
       throw new Error(`Stream error: ${response.status}`);
     }
 
@@ -252,6 +261,82 @@ export async function* streamSearchStatus(taskId: string): AsyncGenerator<any, v
     }
   } catch (error) {
     console.error('SSE stream error:', error);
+    
+    // Jika stream gagal, coba kirim ulang permintaan dengan backoff exponential
+    console.log(`Stream failed, retrying with exponential backoff for task: ${taskId}`);
+    try {
+      // Gunakan endpoint /search/stream yang konsisten dengan backend
+      const streamUrl = `/api/proxy/search/stream/${taskId}`;
+      
+      // Implementasi backoff exponential (coba beberapa kali dengan jeda yang meningkat)
+      for (let retryCount = 0; retryCount < 3; retryCount++) {
+        // Tunggu sebelum mencoba lagi (exponential backoff)
+        const waitMs = Math.pow(2, retryCount) * 1000;
+        console.log(`Waiting ${waitMs}ms before retry ${retryCount + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        
+        console.log(`Retrying stream endpoint (attempt ${retryCount + 1}): ${streamUrl}`);
+        
+        // Fetch dengan header yang lebih lengkap
+        const retryResponse = await fetch(streamUrl, { 
+          cache: 'no-store',
+          headers: {
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+          }
+        });
+        
+        if (retryResponse.ok) {
+          // Jika kita mendapatkan respon OK, kita perlu memparsing data SSE
+          const reader = retryResponse.body?.getReader();
+          if (!reader) {
+            console.error('No reader available for retry response');
+            continue; // Coba lagi di iterasi berikutnya
+          }
+
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          try {
+            const { done, value } = await reader.read();
+            if (!done && value) {
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6));
+                    console.log(`Retry successful, got data:`, data);
+                    yield data;
+                    return; // Berhasil mendapatkan data, keluar dari fungsi
+                  } catch (e) {
+                    console.warn('Failed to parse SSE data from retry:', line);
+                  }
+                }
+              }
+            }
+          } finally {
+            reader.releaseLock();
+          }
+        } else {
+          console.error(`Retry attempt ${retryCount + 1} failed with status: ${retryResponse.status}`);
+        }
+      }
+      
+      console.error('All retry attempts failed for stream endpoint');
+      
+      // Jika semua percobaan gagal, beri tahu pengguna
+      yield {
+        phase: "error",
+        message: "Tidak dapat terhubung ke endpoint streaming setelah beberapa percobaan",
+        error: "Stream connection failed after multiple retries"
+      };
+    
+    } catch (fallbackError) {
+      console.error('Fallback status request failed:', fallbackError);
+    }
+    
     throw error;
   }
 }

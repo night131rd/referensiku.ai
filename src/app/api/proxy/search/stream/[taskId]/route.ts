@@ -17,23 +17,38 @@ export async function GET(
   // Remove any trailing slashes
   baseApiUrl = baseApiUrl.replace(/\/+$/, '');
   
+  // Force local API URL for development if the environment variable is empty
+  if (!baseApiUrl || baseApiUrl.trim() === '') {
+    baseApiUrl = 'http://127.0.0.1:8000';
+    console.log('Empty API_URL, using local default:', baseApiUrl);
+  }
+  
+  // Gunakan endpoint /search/stream yang sesuai dengan implementasi backend
   const backendUrl = `${baseApiUrl}/search/stream/${taskId}`;
   
   try {
     console.log(`Proxying stream request to: ${backendUrl}`);
     
+    // Fetch data dari endpoint /search/stream yang menggunakan Server-Sent Events
     const response = await fetch(backendUrl, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
+        'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache',
       },
+      // Make sure we don't cache this request
+      cache: 'no-store',
     });
 
     if (!response.ok) {
       console.error(`Backend stream error: ${response.status} ${response.statusText}`);
+      
+      // Jika endpoint stream menghasilkan error, kita tetap gunakan error code asli
       return NextResponse.json(
-        { error: `Backend error: ${response.statusText}` },
+        { 
+          error: `Backend error: ${response.statusText}`,
+          message: "Tidak dapat terhubung ke endpoint stream"
+        },
         { status: response.status }
       );
     }
@@ -70,9 +85,11 @@ export async function GET(
     // Return the stream response
     return new Response(readable, {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control',
       },
     });
 

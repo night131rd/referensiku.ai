@@ -336,8 +336,6 @@ export const searchJournals = async (
         authors,
         year,
         journal,
-        doi: s.doi || s.DOI || s.identifier || '',
-        url: s.url || s.link || s.href || '',
         pdfUrl: s.pdfUrl || s.pdf_url || s.pdf || '',
         abstract: s.abstract || s.teks || s.summary || s.description || '',
       };

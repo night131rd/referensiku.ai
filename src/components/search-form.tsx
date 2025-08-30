@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search } from "lucide-react";
+import { Search, Lightbulb } from "lucide-react";
 
 interface SearchFormProps {
   defaultQuery?: string;
@@ -96,6 +96,45 @@ export default function SearchForm({
               placeholder="Hingga tahun (opsional)"
               className="w-full"
             />
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">
+            Mode Pencarian
+          </Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div
+              onClick={() => setMode("quick")}
+              className={`relative block border rounded-lg p-3 cursor-pointer transition-all ${
+                mode === "quick" ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center mb-1">
+                <Search className="mr-1 h-4 w-4 text-blue-600" /> 
+                <span className="font-medium text-blue-700">Quick</span>
+              </div>
+              <p className="text-xs text-gray-600">Menghasilkan jawaban instan dan cepat</p>
+              <div className={`absolute top-2 right-2 h-3 w-3 rounded-full ${
+                mode === "quick" ? 'bg-blue-500' : 'bg-gray-200'
+              }`}></div>
+            </div>
+            
+            <div
+              onClick={() => setMode("detail")}
+              className={`relative block border rounded-lg p-3 cursor-pointer transition-all ${
+                mode === "detail" ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center mb-1">
+                <Lightbulb className="mr-1 h-4 w-4 text-blue-600" /> 
+                <span className="font-medium text-blue-700">Detail</span>
+              </div>
+              <p className="text-xs text-gray-600">Menghasilkan jawaban lengkap, terstruktur, dan detail</p>
+              <div className={`absolute top-2 right-2 h-3 w-3 rounded-full ${
+                mode === "detail" ? 'bg-blue-500' : 'bg-gray-200'
+              }`}></div>
+            </div>
           </div>
         </div>
         <div className="mt-6">
