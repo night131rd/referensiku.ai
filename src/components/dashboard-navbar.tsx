@@ -26,7 +26,7 @@ export default function DashboardNavbar() {
             <div className="mr-2">
               <img 
                 src="/logo.png" 
-                alt="ChatJurnal Logo" 
+                alt="ChatJurnal " 
                 className="h-7 w-auto"
               />
             </div>

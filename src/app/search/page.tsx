@@ -38,8 +38,8 @@ export default async function SearchPage({
             </p>
             <SearchForm 
               defaultQuery={query || ""} 
-              defaultStartYear={startYear || "2000"}
-              defaultEndYear={endYear || "2023"}
+              defaultStartYear={startYear || "2019"}
+              defaultEndYear={endYear || "2025"}
               defaultMode={mode || "quick"}
             />
           </div>
