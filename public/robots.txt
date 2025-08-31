@@ -1,9 +1,0 @@
-# *
-User-agent: *
-Allow: /
-
-# Host
-Host: https://jurnalgpt.app
-
-# Sitemaps
-Sitemap: https://jurnalgpt.app/sitemap.xml
