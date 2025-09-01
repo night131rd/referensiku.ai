@@ -130,7 +130,7 @@ export default function SearchForm({
                 <Lightbulb className="mr-1 h-4 w-4 text-blue-600" /> 
                 <span className="font-medium text-blue-700">Detail</span>
               </div>
-              <p className="text-xs text-gray-600">Menghasilkan jawaban lengkap, terstruktur, dan detail</p>
+              <p className="text-xs text-gray-600">Maaf ya untuk sekarang mode detail masih dalam penggembangan, mungkin terjadi error!!!</p>
               <div className={`absolute top-2 right-2 h-3 w-3 rounded-full ${
                 mode === "detail" ? 'bg-blue-500' : 'bg-gray-200'
               }`}></div>
