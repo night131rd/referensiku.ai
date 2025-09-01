@@ -9,6 +9,44 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      search_logs: {
+        Row: {
+          id: string
+          query: string
+          year: string | null
+          mode: string | null
+          status: string
+          user_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          query: string
+          year?: string | null
+          mode?: string | null
+          status: string
+          user_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          query?: string
+          year?: string | null
+          mode?: string | null
+          status?: string
+          user_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null

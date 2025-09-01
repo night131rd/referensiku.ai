@@ -1,6 +1,7 @@
 /**
  * API client for interacting with the backend
  */
+import { logSearchQuery } from "./logging";
 
 // Track active requests to avoid duplicates
 const activeRequests = new Map<string, Promise<any>>();
@@ -78,6 +79,13 @@ export async function startSearch(query: string, year?: string, mode: string = '
       });
 
       if (!response.ok) {
+        // Log failed search query
+        await logSearchQuery({
+          query,
+          year,
+          mode,
+          status: "error"
+        });
         throw new Error(`Error starting search: ${response.statusText}`);
       }
 
@@ -85,12 +93,40 @@ export async function startSearch(query: string, year?: string, mode: string = '
       
       // Check if we got a fallback error from the proxy
       if (data.fallback === true && data.error) {
+        // Log failed search query
+        await logSearchQuery({
+          query,
+          year,
+          mode,
+          status: "error"
+        });
         throw new Error(data.error);
       }
+      
+      // Log successful search query
+      await logSearchQuery({
+        query,
+        year,
+        mode,
+        status: "success"
+      });
       
       return data;
     } catch (error) {
       console.error('Search request failed:', error);
+      
+      // Log the error if it hasn't been logged already
+      try {
+        await logSearchQuery({
+          query,
+          year,
+          mode,
+          status: "error"
+        });
+      } catch (logError) {
+        console.error('Failed to log search error:', logError);
+      }
+      
       throw error;
     } finally {
       // Remove this request from the active requests map after a delay
@@ -261,6 +297,18 @@ export async function* streamSearchStatus(taskId: string): AsyncGenerator<any, v
     }
   } catch (error) {
     console.error('SSE stream error:', error);
+    
+    // Log the streaming error
+    try {
+      await logSearchQuery({
+        query: `Stream for task: ${taskId}`,
+        year: null,
+        mode: null,
+        status: "error"
+      });
+    } catch (logError) {
+      console.error('Failed to log streaming error:', logError);
+    }
     
     // Jika stream gagal, coba kirim ulang permintaan dengan backoff exponential
     console.log(`Stream failed, retrying with exponential backoff for task: ${taskId}`);
