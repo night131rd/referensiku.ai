@@ -628,6 +628,54 @@ function SearchProgress({
   );
 }
 
+// Komponen untuk menampilkan teks abstrak dengan opsi "Lebih banyak..." dan "Tampilkan lebih sedikit"
+function AbstractText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const maxLength = 150; // Jumlah karakter yang ditampilkan sebelum tombol "Lebih banyak..."
+  
+  const toggleExpanded = () => {
+    setExpanded(!expanded);
+  };
+  
+  if (!text) return <p className="reference-abstract">Tidak ada abstrak tersedia</p>;
+  
+  if (text.length <= maxLength) {
+    return <p className="reference-abstract mb-2">"{text}"</p>;
+  }
+  
+  if (expanded) {
+    return (
+      <div>
+        <p className="reference-abstract mb-1">"{text}"</p>
+        <button 
+          onClick={toggleExpanded} 
+          className="text-blue-600 hover:text-blue-800 text-xs mt-1 font-medium flex items-center"
+        >
+          <span>Tampilkan lebih sedikit</span>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+  
+  return (
+    <div>
+      <p className="reference-abstract mb-1">"{text.substring(0, maxLength)}..."</p>
+      <button 
+        onClick={toggleExpanded} 
+        className="text-blue-600 hover:text-blue-800 text-xs mt-1 font-medium flex items-center"
+      >
+        <span>Lebih banyak...</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function Reference({
   reference,
   index,
@@ -639,8 +687,6 @@ function Reference({
   taskId?: string;
   bibliography?: string[];
 }) {
-  const [showBibliography, setShowBibliography] = useState(false);
-  
   // Handle missing data in reference
   const safeReference = {
     title: reference.title || "No Title",
@@ -706,11 +752,6 @@ function Reference({
   
   // Get bibliography entry for this reference, but only if bibliography is available
   const bibliographyEntry = taskId ? getBibliographyEntry() : `${safeReference.authors.join(', ')}. (${safeReference.year}). ${safeReference.title}. ${safeReference.journal}.`;
-  
-  // Toggle bibliography visibility
-  const toggleBibliography = () => {
-    setShowBibliography(!showBibliography);
-  };
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -755,36 +796,18 @@ function Reference({
           <div className="mt-2 bg-gray-50 p-3 border-l-2 border-blue-500">
             <div className="text-gray-700 text-sm">
               {safeReference.abstract ? (
-                <>
-                  <p className="reference-abstract mb-2">"{safeReference.abstract}"</p>
-                </>
+                <AbstractText text={safeReference.abstract} />
               ) : (
                 <p className="reference-abstract">"{safeReference.journal}"</p>
               )}
             </div>
           </div>
           
-          {/* Bibliography section toggle button */}
+          {/* Bibliography section (selalu ditampilkan) */}
           <div className="mt-3">
-            <button
-              onClick={toggleBibliography}
-              className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
-            >
-              {showBibliography ? "Sembunyikan Daftar Pustaka" : "Tampilkan Daftar Pustaka"}
-              <span className="ml-1 text-xs">
-                {showBibliography ? "▲" : "▼"}
-              </span>
-            </button>
-            
-            {/* Bibliography content */}
-            {showBibliography && (
-              <div className="mt-2 bg-gray-50 p-3 rounded-md border border-gray-200 text-sm">
-                <h4 className="font-medium mb-2 text-xs text-gray-600">Daftar Pustaka:</h4>
-                <ul className="list-disc pl-4 space-y-2">
-                  <li className="text-xs text-gray-700">{bibliographyEntry}</li>
-                </ul>
-              </div>
-            )}
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200 text-sm">
+              <p className="text-xs text-gray-700" dangerouslySetInnerHTML={{ __html: formatBibliographyText(bibliographyEntry) }}></p>
+            </div>
           </div>
         </div>
         <div className="ml-4 flex flex-col items-center justify-center bg-gray-50 rounded-lg p-3 text-center min-w-[60px]">
@@ -796,6 +819,15 @@ function Reference({
       {/* Abstrak sudah ditampilkan lengkap di atas, tidak perlu modal */}
     </div>
   );
+}
+
+// Function to format bibliography text with italic formatting
+function formatBibliographyText(text: string): string {
+  if (!text) return '';
+  
+  // Replace text between asterisks with italic HTML
+  // This regex matches text between single asterisks (*text*) and replaces it with <em>text</em>
+  return text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
 // Function to format answer text with comprehensive markdown styling
