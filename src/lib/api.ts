@@ -13,6 +13,11 @@ export interface SearchResponse {
   percentage?: number;
   fallback?: boolean;
   error?: string;
+  // Header untuk kuota yang dikirim oleh backend
+  headers?: {
+    "X-RateLimit-Limit-Daily": string;
+    "X-RateLimit-Remaining-Daily": string;
+  };
 }
 
 export interface SearchStatusResponse {
@@ -24,6 +29,125 @@ export interface SearchStatusResponse {
   sources?: any[];
   fallback?: boolean;
   error?: string;
+}
+
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  
+  return function(...args: Parameters<T>): void {
+    const later = () => {
+      timeout = null;
+      func(...args);
+    };
+    
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Get authentication headers for API requests
+ * Will include JWT token if user is logged in, otherwise will include anonymous ID
+ */
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  let authHeader: Record<string, string> = {};
+  let isAuthenticated = false;
+  
+  if (typeof window !== 'undefined') {
+    try {
+      // For client-side - use properly configured client
+      const { createClient } = await import('../../supabase/client');
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token) {
+        authHeader = { 'Authorization': `Bearer ${session.access_token}` };
+        isAuthenticated = true;
+        console.log('Added JWT authorization to request (client-side)');
+        
+        // Debugging: Log partial token info to help diagnose
+        const tokenPreview = session.access_token.substring(0, 10) + '...';
+        console.log(`Token preview: ${tokenPreview}, Length: ${session.access_token.length}`);
+      } else {
+        console.log('No active session found on client-side');
+      }
+    } catch (error) {
+      console.error('Failed to get JWT token on client:', error);
+    }
+  } else {
+    // For server-side (using simple client that doesn't rely on next/headers)
+    try {
+      const { createSimpleServerClient } = await import('../../supabase/simple-server');
+      const supabase = createSimpleServerClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token) {
+        authHeader = { 'Authorization': `Bearer ${session.access_token}` };
+        isAuthenticated = true;
+        console.log('Added JWT authorization to request (server-side)');
+      } else {
+        console.log('No active session found on server-side');
+      }
+    } catch (error) {
+      console.error('Failed to get JWT token on server:', error);
+    }
+  }
+  
+    // Always add anonymous ID header for all requests, even for authenticated users
+  // This helps maintain continuity when a guest logs in
+  if (typeof window !== 'undefined') {
+    try {
+      const { getAnonymousId } = await import('./utils');
+      const anonymousId = getAnonymousId();
+      
+      // Add to request headers
+      authHeader = { 
+        ...authHeader,
+        'X-Anonymous-Id': anonymousId
+      };
+      console.log('Added anonymous ID to request:', anonymousId, isAuthenticated ? '(authenticated)' : '(guest)');
+      
+      // If not authenticated, ensure this anonymous ID is in the Supabase table
+      if (!isAuthenticated) {
+        const { createClient } = await import('../../supabase/client');
+        const supabase = createClient();
+        
+        // Check if this anonymous ID exists in the table
+        const { data, error } = await supabase
+          .from('anonymous_quota')
+          .select('anonymous_id')
+          .eq('anonymous_id', anonymousId)
+          .single();
+          
+        if (error && error.code === 'PGRST116') {  // Record not found
+          // Insert new anonymous user
+          console.log('Anonymous user not in database, adding to anonymous_quota table');
+          const { error: insertError } = await supabase
+            .from('anonymous_quota')
+            .insert({
+              anonymous_id: anonymousId,
+              role: 'guest',
+              sisa_quota: 3
+            });
+            
+          if (insertError) {
+            console.error('Failed to insert anonymous user:', insertError);
+          } else {
+            console.log('Successfully added anonymous user to database');
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to handle anonymous ID:', error);
+    }
+  }
+  
+  return authHeader;
 }
 
 export interface AnswerResponse {
@@ -66,26 +190,25 @@ export async function startSearch(query: string, year?: string, mode: string = '
       const url = getProxyUrl('/search');
       console.log(`Starting search request to: ${url}`);
       
+      // Get authentication headers (JWT or Anonymous ID)
+      const authHeader = await getAuthHeaders();
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...authHeader
         },
         body: JSON.stringify({
           query,
           year: year || '-',
           mode
         }),
+        // Pastikan untuk tidak menggunakan cache agar token selalu fresh
+        cache: 'no-store'
       });
 
       if (!response.ok) {
-        // Log failed search query
-        await logSearchQuery({
-          query,
-          year,
-          mode,
-          status: "error"
-        });
         throw new Error(`Error starting search: ${response.statusText}`);
       }
 
@@ -111,7 +234,43 @@ export async function startSearch(query: string, year?: string, mode: string = '
         status: "success"
       });
       
-      return data;
+      // Extract quota information from headers
+      const quotaHeaders = {
+        "X-RateLimit-Limit-Daily": response.headers.get("X-RateLimit-Limit-Daily") || "",
+        "X-RateLimit-Remaining-Daily": response.headers.get("X-RateLimit-Remaining-Daily") || ""
+      };
+      
+      console.log('API response headers:', {
+        daily: quotaHeaders["X-RateLimit-Limit-Daily"],
+        remaining: quotaHeaders["X-RateLimit-Remaining-Daily"]
+      });
+      
+      // Store quota information in localStorage for client-side access
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('searchQuotaLimit', quotaHeaders["X-RateLimit-Limit-Daily"]);
+          localStorage.setItem('searchQuotaRemaining', quotaHeaders["X-RateLimit-Remaining-Daily"]);
+          localStorage.setItem('searchQuotaLastUpdated', new Date().toISOString());
+          
+          // Update the global quota data using custom event
+          const event = new CustomEvent('quotaUpdated', {
+            detail: {
+              total: parseInt(quotaHeaders["X-RateLimit-Limit-Daily"], 10),
+              remaining: parseInt(quotaHeaders["X-RateLimit-Remaining-Daily"], 10)
+              // No longer sending user_role in the event as we're getting it only from Supabase
+            }
+          });
+          window.dispatchEvent(event);
+        } catch (e) {
+          console.warn('Failed to save quota info to localStorage:', e);
+        }
+      }
+      
+      // Add headers to response
+      return {
+        ...data,
+        headers: quotaHeaders
+      };
     } catch (error) {
       console.error('Search request failed:', error);
       
@@ -167,7 +326,14 @@ export interface NewSearchStatusResponse {
 export async function checkSearchStatus(taskId: string): Promise<NewSearchStatusResponse> {
   // Gunakan endpoint /search/stream yang sesuai dengan implementasi backend
   const url = getProxyUrl(`/search/stream/${taskId}`);
-  const res = await fetch(url, { cache: 'no-store' });
+  
+  // Get authentication headers (JWT or Anonymous ID)
+  const authHeader = await getAuthHeaders();
+  
+  const res = await fetch(url, { 
+    headers: authHeader,
+    cache: 'no-store' 
+  });
 
   // Handle accepted status (sources not ready yet)
   if (res.status === 202) {
@@ -246,10 +412,15 @@ export async function* streamSearchStatus(taskId: string): AsyncGenerator<any, v
   
   try {
     console.log(`Fetching stream from: ${streamUrl}`);
+    
+    // Get authentication headers (JWT or Anonymous ID)
+    const authHeader = await getAuthHeaders();
+    
     const response = await fetch(streamUrl, {
       headers: {
         'Accept': 'text/event-stream',
         'Cache-Control': 'no-cache',
+        ...authHeader,
       },
       // Make sure we don't cache this request
       cache: 'no-store',
@@ -395,7 +566,15 @@ export async function* streamSearchStatus(taskId: string): AsyncGenerator<any, v
  */
 export async function getFinalAnswer(taskId: string): Promise<AnswerResponse> {
   const url = getProxyUrl(`/answer/${taskId}`);
-  const res = await fetch(url, { cache: 'no-store' });
+  
+  // Get authentication headers (JWT or Anonymous ID)
+  const authHeader = await getAuthHeaders();
+  
+  const res = await fetch(url, { 
+    headers: authHeader,
+    cache: 'no-store' 
+  });
+  
   if (!res.ok) throw new Error(`Answer error: ${res.status}`);
   return res.json();
 }
@@ -424,7 +603,13 @@ export async function getBibliography(
     const url = getProxyUrl(`/bibliography/${taskId}`);
     console.log(`Fetching bibliography from: ${url}`);
     
-    const response = await fetch(url);
+    // Get authentication headers (JWT or Anonymous ID)
+    const authHeader = await getAuthHeaders();
+    
+    const response = await fetch(url, {
+      headers: authHeader,
+      cache: 'no-store'
+    });
 
     if (!response.ok) {
       // If task not found or not completed, return empty bibliography
@@ -496,26 +681,4 @@ export function getProxyUrl(path: string): string {
   
   // For server-side code, use the direct URL
   return `${baseApiUrl}${formattedPath}`;
-}
-
-/**
- * Utility function to debounce repeated calls
- * @param func The function to debounce
- * @param wait Time to wait in milliseconds before executing
- */
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null;
-  
-  return function(...args: Parameters<T>) {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-    
-    timeout = setTimeout(() => {
-      func(...args);
-    }, wait);
-  };
 }

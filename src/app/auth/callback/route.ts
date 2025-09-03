@@ -50,7 +50,7 @@ export async function GET(request: Request) {
           console.log("Google user authenticated, checking if user exists in database");
           // Extract user information from the user object
           const { data: existingUser } = await supabase
-            .from('users')
+            .from('profiles')
             .select()
             .eq('id', user.id)
             .single();

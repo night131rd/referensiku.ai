@@ -278,15 +278,40 @@ export default function SearchResults({
             setProgress(backendPercentage);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("SSE search error:", error);
         if (progressInterval) {
           clearInterval(progressInterval);
           progressInterval = null;
         }
         
-        // Jika sudah memiliki beberapa hasil, tetap tampilkan dengan pesan error
-        if (result && result.references && result.references.length > 0) {
+        // Check if this is a rate limit error (HTTP 429)
+        const isRateLimitError = error?.message?.includes('429') || 
+                                 error?.status === 429 || 
+                                 error?.statusCode === 429;
+        
+        if (isRateLimitError) {
+          // Rate limit error - kuota pencarian harian sudah habis
+          setResult({
+            answer: '### Batas Pencarian Harian Tercapai\n\nMaaf, kuota pencarian harian Anda telah habis. Silakan tunggu hingga besok untuk melanjutkan pencarian atau upgrade ke paket premium untuk mendapatkan kuota pencarian yang lebih banyak.',
+            references: [],
+            phase: 'completed',
+            answerPending: false,
+            taskId: '',
+          });
+          setSearchState("complete");
+          setProgress(100);
+          
+          // Set remaining quota to 0 in localStorage if it's not already set
+          try {
+            localStorage.setItem('searchQuotaRemaining', '0');
+          } catch (e) {
+            console.warn('Failed to update quota info in localStorage:', e);
+          }
+        }
+        // Regular error handling for other types of errors
+        else if (result && result.references && result.references.length > 0) {
+          // Jika sudah memiliki beberapa hasil, tetap tampilkan dengan pesan error
           setResult(prev => ({
             ...(prev || { answer: '', references: [] }),
             answer: prev?.answer || 'Maaf, terjadi kesalahan saat mengambil jawaban lengkap. Namun beberapa referensi telah ditemukan.',

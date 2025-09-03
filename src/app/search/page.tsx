@@ -20,6 +20,8 @@ export default async function SearchPage({
   const { query, startYear, endYear, mode } = searchParams;
   const hasSearchParams = !!query;
 
+  // Hanya dapatkan user untuk autentikasi - tidak perlu mengambil kuota di sini
+  // karena informasi kuota akan dikirim oleh endpoint /search pada response
   const supabase = await createClient();
   const {
     data: { user },
