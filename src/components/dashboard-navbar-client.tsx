@@ -1,5 +1,7 @@
+'use client'
+
 import Link from 'next/link'
-import { createClient } from '../../supabase/server'
+import { createClient } from '../../supabase/client'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,27 +12,16 @@ import {
 } from './ui/dropdown-menu'
 import { Button } from './ui/button'
 import { UserCircle, Home, Search, BookmarkIcon, Settings, LogOut } from 'lucide-react'
-import DashboardNavbarClient from './dashboard-navbar-client'
+import { useRouter } from 'next/navigation'
+import UpgradeButton from './upgrade-button'
 
-export default async function DashboardNavbar() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+interface DashboardNavbarClientProps {
+  userRole: string | null
+}
 
-  // Check user role if authenticated
-  let userRole = null
-  if (user) {
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    userRole = profileData?.role || 'free'
-  }
-
-  return <DashboardNavbarClient userRole={userRole} />
+export default function DashboardNavbarClient({ userRole }: DashboardNavbarClientProps) {
+  const supabase = createClient()
+  const router = useRouter()
 
   return (
     <nav className="w-full border-b border-gray-200 bg-white py-3">
@@ -38,9 +29,9 @@ export default async function DashboardNavbar() {
         <div className="flex items-center gap-4">
           <Link href="/" className="text-xl font-bold flex items-center">
             <div className="mr-2">
-              <img 
-                src="/logo.png" 
-                alt="ChatJurnal " 
+              <img
+                src="/logo.png"
+                alt="ChatJurnal "
                 className="h-7 w-auto"
               />
             </div>
@@ -73,15 +64,17 @@ export default async function DashboardNavbar() {
             </Button>
           </div>
         </div>
-        
+
         <div className="flex gap-4 items-center">
+          {userRole !== 'premium' && <UpgradeButton />}
+
           <Button variant="outline" size="sm" className="hidden md:flex" asChild>
             <Link href="/search" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
               <span>New Search</span>
             </Link>
           </Button>
-          
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 bg-gray-100">
@@ -110,7 +103,10 @@ export default async function DashboardNavbar() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="flex items-center gap-2 cursor-pointer text-red-500">
+              <DropdownMenuItem onClick={async () => {
+                await supabase.auth.signOut()
+                router.refresh()
+              }} className="flex items-center gap-2 cursor-pointer text-red-500">
                 <LogOut className="h-4 w-4" />
                 <span>Sign out</span>
               </DropdownMenuItem>

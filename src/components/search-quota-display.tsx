@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchQuota } from "@/hooks/useSearchQuota";
 import { createClient } from "../../supabase/client";
 
 interface SearchQuotaProps {
-  // Opsional props jika dikirim langsung oleh parent
+  // Optional props if sent directly by parent
   remainingQuota?: number;
   totalQuota?: number;
 }
@@ -14,17 +13,16 @@ export default function SearchQuotaDisplay({
   remainingQuota: propsRemainingQuota, 
   totalQuota: propsTotalQuota
 }: SearchQuotaProps) {
-  // States for user role and authentication status
+  // States for user data and loading
   const [userRole, setUserRole] = useState<string>("guest");
-  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
+  const [quotaTotal, setQuotaTotal] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   
-  // Use the search quota hook just for quota data, not for user role
-  const { quotaData, isLoading: isQuotaLoading } = useSearchQuota();
-  
-  // Check Supabase authentication and anonymous_quota table
+  // Check Supabase for authentication and quota
   useEffect(() => {
-    const checkUserAuth = async () => {
-      setIsAuthChecking(true);
+    const fetchQuotaFromSupabase = async () => {
+      setIsLoading(true);
       
       try {
         if (typeof window !== 'undefined') {
@@ -40,7 +38,7 @@ export default function SearchQuotaDisplay({
           const { data: { session } } = await supabase.auth.getSession();
           
           if (session?.user) {
-            // User is authenticated - try to get role from profiles
+            // User is authenticated - get quota from profiles
             console.log('Found authenticated user:', session.user.email);
             
             const { data: profileData, error } = await supabase
@@ -53,28 +51,23 @@ export default function SearchQuotaDisplay({
               setUserRole(profileData.role);
               console.log('Found user role in profiles:', profileData.role);
               
-              // Update quota data from profiles
+              // Set quota data directly from Supabase
               if (profileData.sisa_quota !== undefined) {
                 const quotaLimit = profileData.role === 'premium' ? 50 : 
-                                 profileData.role === 'free' ? 10 : 3;
-                                 
-                // Update the quota data
-                localStorage.setItem('searchQuotaLimit', quotaLimit.toString());
-                localStorage.setItem('searchQuotaRemaining', profileData.sisa_quota.toString());
-                localStorage.setItem('searchQuotaLastUpdated', new Date().toISOString());
+                                  profileData.role === 'free' ? 10 : 3;
                 
-                // Dispatch event to update the quota display
-                const event = new CustomEvent('quotaUpdated', {
-                  detail: {
-                    total: quotaLimit,
-                    remaining: profileData.sisa_quota
-                  }
+                setQuotaRemaining(profileData.sisa_quota);
+                setQuotaTotal(quotaLimit);
+                console.log('Set quota from profiles:', {
+                  remaining: profileData.sisa_quota,
+                  total: quotaLimit
                 });
-                window.dispatchEvent(event);
               }
             } else {
               setUserRole("free"); // Default for authenticated users
-              console.log('User authenticated but no role found, setting to free');
+              setQuotaTotal(10); // Default quota for free users
+              setQuotaRemaining(10); // Assume full quota if not found
+              console.log('User authenticated but no role found, setting to free with default quota');
             }
           } else {
             // No session, user is a guest - check anonymous_quota table
@@ -90,24 +83,15 @@ export default function SearchQuotaDisplay({
             if (!anonymousError && anonymousData) {
               // Found existing anonymous user
               setUserRole(anonymousData.role);
-              console.log('Found anonymous user data:', anonymousData);
-              
-              // Update quota data
               const quotaLimit = anonymousData.role === 'guest' ? 3 : 5;
               
-              // Update the quota data
-              localStorage.setItem('searchQuotaLimit', quotaLimit.toString());
-              localStorage.setItem('searchQuotaRemaining', anonymousData.sisa_quota.toString());
-              localStorage.setItem('searchQuotaLastUpdated', new Date().toISOString());
-              
-              // Dispatch event to update the quota display
-              const event = new CustomEvent('quotaUpdated', {
-                detail: {
-                  total: quotaLimit,
-                  remaining: anonymousData.sisa_quota
-                }
+              setQuotaRemaining(anonymousData.sisa_quota);
+              setQuotaTotal(quotaLimit);
+              console.log('Found anonymous user data:', {
+                role: anonymousData.role,
+                remaining: anonymousData.sisa_quota,
+                total: quotaLimit
               });
-              window.dispatchEvent(event);
             } else {
               // Anonymous user not found - insert a new entry
               console.log('Anonymous user not found, creating new entry');
@@ -126,20 +110,8 @@ export default function SearchQuotaDisplay({
               }
               
               setUserRole("guest");
-              
-              // Set default quota for new guest user
-              localStorage.setItem('searchQuotaLimit', '3');
-              localStorage.setItem('searchQuotaRemaining', '3');
-              localStorage.setItem('searchQuotaLastUpdated', new Date().toISOString());
-              
-              // Dispatch event to update the quota display
-              const event = new CustomEvent('quotaUpdated', {
-                detail: {
-                  total: 3,
-                  remaining: 3
-                }
-              });
-              window.dispatchEvent(event);
+              setQuotaRemaining(3);
+              setQuotaTotal(3);
             }
           }
         } else {
@@ -150,22 +122,12 @@ export default function SearchQuotaDisplay({
         console.error('Error checking auth status:', error);
         setUserRole("guest"); // Default to guest on error
       } finally {
-        setIsAuthChecking(false);
+        setIsLoading(false);
       }
     };
     
-    checkUserAuth();
+    fetchQuotaFromSupabase();
   }, []);
-  
-  // Add debugging to console
-  useEffect(() => {
-    console.log('SearchQuotaDisplay - Current role and quota:', {
-      userRole,
-      quotaData,
-      isAuthChecking,
-      isQuotaLoading
-    });
-  }, [userRole, quotaData, isAuthChecking, isQuotaLoading]);
   
   // Periodically refresh quota data from Supabase
   useEffect(() => {
@@ -192,28 +154,13 @@ export default function SearchQuotaDisplay({
             const quotaLimit = profileData.role === 'premium' ? 50 : 
                               profileData.role === 'free' ? 10 : 3;
             
-            // Update the quota data if it changed
-            const currentRemaining = localStorage.getItem('searchQuotaRemaining');
-            if (!currentRemaining || parseInt(currentRemaining) !== profileData.sisa_quota) {
-              console.log('Refreshed quota data for authenticated user:', {
-                remaining: profileData.sisa_quota,
-                total: quotaLimit
-              });
-              
-              // Update localStorage
-              localStorage.setItem('searchQuotaLimit', quotaLimit.toString());
-              localStorage.setItem('searchQuotaRemaining', profileData.sisa_quota.toString());
-              localStorage.setItem('searchQuotaLastUpdated', new Date().toISOString());
-              
-              // Dispatch event to update the quota display
-              const event = new CustomEvent('quotaUpdated', {
-                detail: {
-                  total: quotaLimit,
-                  remaining: profileData.sisa_quota
-                }
-              });
-              window.dispatchEvent(event);
-            }
+            // Update the state directly with fresh Supabase data
+            setQuotaRemaining(profileData.sisa_quota);
+            setQuotaTotal(quotaLimit);
+            console.log('Refreshed quota data for authenticated user:', {
+              remaining: profileData.sisa_quota,
+              total: quotaLimit
+            });
           }
         } else {
           // Anonymous user - get quota from anonymous_quota
@@ -226,28 +173,13 @@ export default function SearchQuotaDisplay({
           if (anonData && anonData.sisa_quota !== undefined) {
             const quotaLimit = anonData.role === 'guest' ? 3 : 5;
             
-            // Update the quota data if it changed
-            const currentRemaining = localStorage.getItem('searchQuotaRemaining');
-            if (!currentRemaining || parseInt(currentRemaining) !== anonData.sisa_quota) {
-              console.log('Refreshed quota data for anonymous user:', {
-                remaining: anonData.sisa_quota,
-                total: quotaLimit
-              });
-              
-              // Update localStorage
-              localStorage.setItem('searchQuotaLimit', quotaLimit.toString());
-              localStorage.setItem('searchQuotaRemaining', anonData.sisa_quota.toString());
-              localStorage.setItem('searchQuotaLastUpdated', new Date().toISOString());
-              
-              // Dispatch event to update the quota display
-              const event = new CustomEvent('quotaUpdated', {
-                detail: {
-                  total: quotaLimit,
-                  remaining: anonData.sisa_quota
-                }
-              });
-              window.dispatchEvent(event);
-            }
+            // Update the state directly with fresh Supabase data
+            setQuotaRemaining(anonData.sisa_quota);
+            setQuotaTotal(quotaLimit);
+            console.log('Refreshed quota data for anonymous user:', {
+              remaining: anonData.sisa_quota,
+              total: quotaLimit
+            });
           }
         }
       } catch (error) {
@@ -255,24 +187,21 @@ export default function SearchQuotaDisplay({
       }
     };
     
-    // Initial refresh
-    refreshQuotaData();
-    
     // Set up periodic refresh (every 30 seconds)
     const refreshInterval = setInterval(refreshQuotaData, 30000);
     
     return () => clearInterval(refreshInterval);
-  }, [userRole]);
+  }, []);
   
-  // Gunakan nilai dari props atau dari quotaData hook
+  // Use props values if provided, otherwise use state values from Supabase
   const displayRemainingQuota = propsRemainingQuota !== undefined ? 
     propsRemainingQuota : 
-    quotaData?.remaining;
+    quotaRemaining;
   const displayTotalQuota = propsTotalQuota !== undefined ? 
     propsTotalQuota : 
-    quotaData?.total;
+    quotaTotal;
   
-  // Map role untuk label yang ditampilkan
+  // Map role for display label
   const getRoleLabel = (role: string) => {
     switch(role.toLowerCase()) {
       case 'guest': return 'Tamu';
@@ -282,7 +211,7 @@ export default function SearchQuotaDisplay({
     }
   };
   
-  // Map role untuk warna badge
+  // Map role for badge color
   const getRoleBadgeColor = (role: string) => {
     switch(role.toLowerCase()) {
       case 'guest': return 'bg-gray-100 text-gray-800';
@@ -292,7 +221,7 @@ export default function SearchQuotaDisplay({
     }
   };
 
-  // Untuk role premium, tampilkan label berbeda
+  // For premium role, show different label
   const getQuotaLabel = (role: string) => {
     if (role.toLowerCase() === 'premium') {
       return "Premium";
@@ -302,31 +231,14 @@ export default function SearchQuotaDisplay({
 
   // Special debug function to show detailed information
   const showDebugInfo = () => {
-    try {
-      const storedLimit = localStorage.getItem('searchQuotaLimit');
-      const storedRemaining = localStorage.getItem('searchQuotaRemaining');
-      
-      console.log('DEBUG INFO - Search Quota Display:');
-      console.log('- Current user role from Supabase:', userRole);
-      console.log('- Current quota remaining:', displayRemainingQuota);
-      console.log('- Current quota total:', displayTotalQuota);
-      console.log('- Stored quota in localStorage:', {
-        limit: storedLimit,
-        remaining: storedRemaining
-      });
-      console.log('- Full quotaData:', quotaData);
-    } catch (e) {
-      console.error('Error in debug info:', e);
-    }
+    console.log('DEBUG INFO - Search Quota Display:');
+    console.log('- Current user role from Supabase:', userRole);
+    console.log('- Current quota remaining:', displayRemainingQuota);
+    console.log('- Current quota total:', displayTotalQuota);
   };
   
-  // Call debug on mount
-  useEffect(() => {
-    showDebugInfo();
-  }, [userRole, displayRemainingQuota, displayTotalQuota]);
-  
-  // Jika loading atau tidak ada informasi kuota sama sekali, tampilkan skeleton
-  if (isAuthChecking || isQuotaLoading) {
+  // If loading, show skeleton
+  if (isLoading) {
     return (
       <div className="flex items-center justify-between text-xs text-gray-500 mt-4 px-1">
         <div className="w-16 h-4 bg-gray-200 rounded animate-pulse"></div>
@@ -336,7 +248,7 @@ export default function SearchQuotaDisplay({
   }
 
   // Check if quota is depleted (0 remaining)
-  const isQuotaDepleted = displayRemainingQuota !== undefined && displayRemainingQuota <= 0;
+  const isQuotaDepleted = displayRemainingQuota !== undefined && displayRemainingQuota !== null && displayRemainingQuota <= 0;
   
   return (
     <>
