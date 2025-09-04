@@ -48,9 +48,6 @@ export default async function Navbar() {
           ) : (
             <>
               <UpgradeButton />
-              <Link href="/sign-in" className="text-gray-800 hover:text-gray-900">
-                Sign in
-              </Link>
             </>
           )}
         </div>

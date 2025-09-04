@@ -61,24 +61,23 @@ export default function UpgradeButton() {
           variant="default"
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
         >
-          Upgrade to Premium
+          Pencarian tanpa Batas
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Upgrade to Premium</DialogTitle>
+          <DialogTitle>Pencarian tanpa Batas</DialogTitle>
           <DialogDescription>
-            Unlock unlimited searches and premium features for only Rp 50,000/month.
+           Website ini dibuat oleh mahasiswa untuk membantu mahasiswa lain mencari jurnal lebih mudah. Hanya dengan 15.000/bulan – seharga kopi, Anda bukan hanya mendapatkan fitur tambahan — tapi juga ikut menjaga layanan ini tetap berjalan.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="bg-gray-50 p-4 rounded-lg">
-            <h3 className="font-semibold mb-2">Premium Features:</h3>
+            <h3 className="font-semibold mb-2">Pengguna Premium:</h3>
             <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>Unlimited searches</li>
-              <li>Advanced search filters</li>
-              <li>Priority support</li>
-              <li>Export results</li>
+              <li>🔍 Pencarian tanpa batas – riset tanpa hambatan</li>
+              <li>⚡ Dukungan prioritas – pertanyaan Anda diprioritaskan</li>
+              <li>🤝 Dukungan komunitas – kontribusi nyata untuk keberlangsungan layanan</li>
             </ul>
           </div>
 
@@ -93,7 +92,7 @@ export default function UpgradeButton() {
             disabled={isLoading}
             className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
           >
-            {isLoading ? "Processing..." : "Upgrade Now - Rp 50,000"}
+            {isLoading ? "Processing..." : "Jadi Premium - Rp 15,000/bulan"}
           </Button>
         </div>
       </DialogContent>
