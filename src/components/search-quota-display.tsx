@@ -252,9 +252,9 @@ export default function SearchQuotaDisplay({
   
   return (
     <>
-      {/* Simplified quota display - role on left, remaining searches on right */}
-      <div className="flex items-center justify-between text-xs mt-4 px-1">
-        {/* Left side - Role only */}
+      {/* Role display only */}
+      <div className="flex items-center justify-start text-xs mt-4 px-1">
+        {/* Role badge */}
         <div className="flex items-center">
           <span 
             className={`${getRoleBadgeColor(userRole)} px-2 py-0.5 rounded-full font-medium cursor-pointer`}
@@ -263,17 +263,6 @@ export default function SearchQuotaDisplay({
           >
             {getRoleLabel(userRole)}
           </span>
-        </div>
-        
-        {/* Right side - Remaining searches only */}
-        <div className="text-gray-600">
-          {displayRemainingQuota !== undefined ? (
-            <span>
-              Sisa: <span className={`font-medium ${isQuotaDepleted ? 'text-red-600' : 'text-blue-600'}`}>{displayRemainingQuota}</span>
-            </span>
-          ) : (
-            <span className="text-gray-400">Sisa: -</span>
-          )}
         </div>
       </div>
       

@@ -21,10 +21,9 @@ export default async function SearchPage({
     query?: string;
     startYear?: string;
     endYear?: string;
-    mode?: string;
   };
 }) {
-  const { query, startYear, endYear, mode } = searchParams;
+  const { query, startYear, endYear } = searchParams;
   const hasSearchParams = !!query;
 
   // Get user information including role
@@ -109,7 +108,7 @@ export default async function SearchPage({
                   defaultQuery={query || ""}
                   defaultStartYear={startYear || "2019"}
                   defaultEndYear={endYear || "2025"}
-                  defaultMode={mode || "quick"}
+                  defaultMode="quick"
                 />
               </div>
             </div>
@@ -132,7 +131,7 @@ export default async function SearchPage({
                     query={query || ""}
                     startYear={startYear || "2000"}
                     endYear={endYear || "2023"}
-                    mode={mode || "quick"}
+                    mode="quick"
                   />
                 </Suspense>
               )}
