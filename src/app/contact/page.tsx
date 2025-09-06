@@ -26,7 +26,7 @@ const SimpleNavbar = () => (
         <Link href="/" className="text-xl font-bold flex items-center">
           <div className="mr-2">
             <img
-              src="/dog.png"
+              src="/favicon.png"
               alt="JurnalGPT"
               className="h-8 w-8"
               loading="lazy"

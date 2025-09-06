@@ -14,9 +14,9 @@ export const metadata: Metadata = {
   title: "JurnalGPT : AI Pencarian Jurnal Akademik",
   description: "JurnalGPT adalah platform yang menggabungkan kecerdasan buatan dengan database jurnal akademik untuk memberikan jawaban yang akurat dan terperinci terhadap pertanyaan Anda.",
   icons: {
-    icon: "/header_logo.png",
-    shortcut: "/header_logo.png",
-    apple: "/header_logo.png",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 

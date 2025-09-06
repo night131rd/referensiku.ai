@@ -29,10 +29,10 @@ export default function DashboardNavbarClient({ userRole }: DashboardNavbarClien
         <div className="flex items-center gap-4">
           <Link href="/" className="text-xl font-bold flex items-center">
             <div className="mr-2">
-                            <img
-                src="/header_logo.png"
-                alt="ChatJurnal Logo"
-                className="h-6 sm:h-7 w-auto"
+                                          <img
+                src="/favicon.png"
+                alt="JurnalGPT Logo"
+                className="h-8 w-8"
               />
             </div>
             <span className="flex space-x-1 mr-1">

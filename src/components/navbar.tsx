@@ -28,7 +28,7 @@ export default async function Navbar() {
           <Link href="/" className="text-lg sm:text-xl font-bold flex items-center min-h-[44px]">
             <div className="mr-2">
               <img
-                src="/header_logo.png"
+                src="/favicon.png"
                 alt="ChatJurnal Logo"
                 className="h-6 sm:h-7 w-auto"
               />

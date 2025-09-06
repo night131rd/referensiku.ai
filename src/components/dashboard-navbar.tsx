@@ -39,7 +39,7 @@ export default async function DashboardNavbar() {
           <Link href="/" className="text-xl font-bold flex items-center">
             <div className="mr-2">
                             <img 
-                src="/header_logo.png"
+                src="/favicon.ico"
                 alt="ChatJurnal Logo"
                 className="h-6 sm:h-7 w-auto"
               />
