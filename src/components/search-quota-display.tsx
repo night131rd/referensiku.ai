@@ -53,7 +53,7 @@ export default function SearchQuotaDisplay({
               
               // Set quota data directly from Supabase
               if (profileData.sisa_quota !== undefined) {
-                const quotaLimit = profileData.role === 'premium' ? 50 : 
+                const quotaLimit = profileData.role === 'premium' ? 100 : 
                                   profileData.role === 'free' ? 10 : 3;
                 
                 setQuotaRemaining(profileData.sisa_quota);
@@ -226,7 +226,7 @@ export default function SearchQuotaDisplay({
     if (role.toLowerCase() === 'premium') {
       return "Premium";
     }
-    return "Harian";
+    return "";
   };
 
   // Special debug function to show detailed information
@@ -252,9 +252,10 @@ export default function SearchQuotaDisplay({
   
   return (
     <>
-      {/* Improved quota display with role and reset information */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between text-xs mt-4 px-1">
-        <div className="flex items-center space-x-2 mb-2 md:mb-0">
+      {/* Simplified quota display - role on left, remaining searches on right */}
+      <div className="flex items-center justify-between text-xs mt-4 px-1">
+        {/* Left side - Role only */}
+        <div className="flex items-center">
           <span 
             className={`${getRoleBadgeColor(userRole)} px-2 py-0.5 rounded-full font-medium cursor-pointer`}
             onClick={showDebugInfo}
@@ -262,31 +263,16 @@ export default function SearchQuotaDisplay({
           >
             {getRoleLabel(userRole)}
           </span>
-          {userRole.toLowerCase() === 'premium' && (
-            <span className="text-green-600">
-              ✓ Akses Premium
-            </span>
-          )}
         </div>
         
-        <div className="text-right text-gray-600">
-          {displayRemainingQuota !== undefined && displayTotalQuota !== undefined ? (
-            <div className="flex flex-col items-end">
-              <span>
-                Sisa pencarian: <span className={`font-medium ${isQuotaDepleted ? 'text-red-600' : 'text-blue-600'}`}>{displayRemainingQuota}</span>
-                <span className="font-medium text-gray-600">/{displayTotalQuota}</span>
-                <span className="ml-1 text-gray-500">({getQuotaLabel(userRole)})</span>
-              </span>
-              {userRole === "guest" && (
-                <span className="text-gray-500 text-xs mt-1">
-                  Login untuk mendapat kuota lebih banyak
-                </span>
-              )}
-            </div>
-          ) : (
-            <span className="text-gray-400">
-              {userRole === "guest" ? "Login untuk mendapat kuota lebih" : "Informasi kuota tidak tersedia"}
+        {/* Right side - Remaining searches only */}
+        <div className="text-gray-600">
+          {displayRemainingQuota !== undefined ? (
+            <span>
+              Sisa: <span className={`font-medium ${isQuotaDepleted ? 'text-red-600' : 'text-blue-600'}`}>{displayRemainingQuota}</span>
             </span>
+          ) : (
+            <span className="text-gray-400">Sisa: -</span>
           )}
         </div>
       </div>
@@ -294,11 +280,11 @@ export default function SearchQuotaDisplay({
       {/* Warning banner when quota is depleted */}
       {isQuotaDepleted && (
         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
-          <p className="font-semibold mb-1">Batas Pencarian {userRole === "premium" ? "Premium" : "Harian"} Tercapai</p>
+          <p className="font-semibold mb-1">Batas Pencarian {userRole === "premium" ? "Premium" : ""} Tercapai</p>
           <p className="text-xs">
             {userRole === "premium" 
               ? "Kuota pencarian premium Anda telah habis. Silahkan hubungi admin untuk informasi lebih lanjut."
-              : "Kuota pencarian harian Anda telah habis. Kuota akan direset pada hari berikutnya atau Anda dapat mengupgrade ke paket premium untuk kuota yang lebih banyak."}
+              : "Kuota pencarian Anda telah habis. Anda dapat mengupgrade ke paket premium untuk kuota yang lebih banyak."}
           </p>
         </div>
       )}

@@ -61,12 +61,12 @@ export default function UpgradeButton() {
           variant="default"
           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
         >
-          Pencarian tanpa Batas
+          Upgrade Premium
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Pencarian tanpa Batas</DialogTitle>
+          <DialogTitle>Upgrade ke Premium</DialogTitle>
           <DialogDescription>
            Website ini dibuat oleh mahasiswa untuk membantu mahasiswa lain mencari jurnal lebih mudah. Hanya dengan 15.000/bulan – seharga kopi, Anda bukan hanya mendapatkan fitur tambahan — tapi juga ikut menjaga layanan ini tetap berjalan.
           </DialogDescription>
