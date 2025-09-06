@@ -204,13 +204,13 @@ export default function RateLimitedSearchForm({
               <Alert variant="destructive" className="bg-red-50 border-red-200">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription className="ml-2">
-                  Limit pencarian harian Anda telah habis. Silakan coba lagi besok.
+                  Limit pencarian anda telah habis. Silakan upgrade ke akun premium untuk mendapatkan limit lebih banyak.
                 </AlertDescription>
               </Alert>
             ) : (
               <div className="bg-blue-50 border border-blue-100 rounded-md px-3 py-2 text-sm text-blue-700">
                 <p className="flex items-center gap-1">
-                  <span>Limit pencarian harian:</span>
+                  <span>Limit pencarian :</span>
                   <span className="font-medium">{rateLimit.remaining} / {rateLimit.limit}</span>
                   <span>tersisa</span>
                 </p>

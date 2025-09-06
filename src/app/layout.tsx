@@ -6,6 +6,7 @@ import Script from "next/script";
 import { TempoInit } from "@/components/tempo-init";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Analytics } from "@vercel/analytics/next";
+import FloatingSupportButton from "@/components/floating-support-button";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -13,9 +14,9 @@ export const metadata: Metadata = {
   title: "JurnalGPT : AI Pencarian Jurnal Akademik",
   description: "JurnalGPT adalah platform yang menggabungkan kecerdasan buatan dengan database jurnal akademik untuk memberikan jawaban yang akurat dan terperinci terhadap pertanyaan Anda.",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body>
         {children}
         <Analytics />
+        <FloatingSupportButton />
       </body>
     </html>
   );

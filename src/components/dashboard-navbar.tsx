@@ -1,7 +1,5 @@
-'use client'
-
 import Link from 'next/link'
-import { createClient } from '../../supabase/client'
+import { createClient } from '../../supabase/server'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,11 +10,27 @@ import {
 } from './ui/dropdown-menu'
 import { Button } from './ui/button'
 import { UserCircle, Home, Search, BookmarkIcon, Settings, LogOut } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import DashboardNavbarClient from './dashboard-navbar-client'
 
-export default function DashboardNavbar() {
-  const supabase = createClient()
-  const router = useRouter()
+export default async function DashboardNavbar() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  // Check user role if authenticated
+  let userRole = null
+  if (user) {
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    userRole = profileData?.role || 'free'
+  }
+
+  return <DashboardNavbarClient userRole={userRole} />
 
   return (
     <nav className="w-full border-b border-gray-200 bg-white py-3">
@@ -24,10 +38,10 @@ export default function DashboardNavbar() {
         <div className="flex items-center gap-4">
           <Link href="/" className="text-xl font-bold flex items-center">
             <div className="mr-2">
-              <img 
-                src="/logo.png" 
-                alt="ChatJurnal " 
-                className="h-7 w-auto"
+                            <img 
+                src="/favicon.ico"
+                alt="ChatJurnal Logo"
+                className="h-6 sm:h-7 w-auto"
               />
             </div>
             <span className="flex space-x-1 mr-1">
@@ -96,10 +110,7 @@ export default function DashboardNavbar() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={async () => {
-                await supabase.auth.signOut()
-                router.refresh()
-              }} className="flex items-center gap-2 cursor-pointer text-red-500">
+              <DropdownMenuItem className="flex items-center gap-2 cursor-pointer text-red-500">
                 <LogOut className="h-4 w-4" />
                 <span>Sign out</span>
               </DropdownMenuItem>
